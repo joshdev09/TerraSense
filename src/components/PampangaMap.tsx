@@ -10,42 +10,6 @@ const PAMPANGA_BOUNDS: [[number, number], [number, number]] = [
 
 export default function PampangaMap() {
 
-//   const defaultStyle = {
-//     color: '#3b82f6',    
-//     weight: 2,           
-//     opacity: 0.8,         
-//     fillColor: '#93c5fd', 
-//     fillOpacity: 0.1,    
-//     className: 'glow-layer' 
-//   };
-
-  // const onEachFeature = (feature: any, layer: any) => {
-    
-  //   const cityName = feature.properties?.MUNICIPALI || "Unknown City";
-
-  //   layer.bindTooltip(cityName, {
-  //     sticky: true, 
-  //     direction: 'auto',
-  //     className: 'city-tooltip' 
-  //   });
-
-  //   layer.on({
-  //     mouseover: (e: any) => {
-  //       const hoveredLayer = e.target;
-  //       hoveredLayer.setStyle({
-  //         weight: 4,
-  //         color: '#60a5fa', 
-  //         fillOpacity: 0.4, 
-  //       });
-  //       hoveredLayer.bringToFront(); 
-  //     },
-  //     mouseout: (e: any) => {
-  //       const hoveredLayer = e.target;
-  //       hoveredLayer.setStyle(defaultStyle);
-  //     },
-  //   });
-  // };
-
   return (
     <div
       style={{ 
