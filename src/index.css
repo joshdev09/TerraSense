@@ -10,3 +10,66 @@ body, html, #root {
   padding: 0;
   height: 100vh;
 }
+
+/* Search bar placeholder */
+.ts-search-input::placeholder {
+  color: #BBB;
+}
+
+/* Timeline range slider */
+.ts-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* WebKit track */
+.ts-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #E8E6DA;
+}
+
+/* WebKit thumb */
+.ts-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+  margin-top: -5.5px; /* center thumb on 3px track: (14-3)/2 */
+}
+
+/* Firefox track */
+.ts-range::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: #E8E6DA;
+}
+
+/* Firefox thumb */
+.ts-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+}
+
+
+/* Layer controller timeline fade-in */
+@keyframes tsSlideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

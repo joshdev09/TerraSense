@@ -6,16 +6,25 @@ import {
   BookOpen,
   X,
   Menu,
+  Map,
 } from 'lucide-react'
 
-const NAV_ITEMS = [
-  { label: 'Analytics & Reports', icon: BarChart2 },
-  { label: 'LGU Data Export Hub', icon: Download },
-  { label: 'Community Reports', icon: MessageSquare },
-  { label: 'Sources', icon: BookOpen },
+export type AppView = 'map' | 'analytics' | 'export' | 'community' | 'sources'
+
+interface BurgerMenuNavProps {
+  onNavigate: (view: AppView) => void
+  activeView: AppView
+}
+
+const NAV_ITEMS: { label: string; icon: React.ElementType; view: AppView }[] = [
+  { label: 'Map View',            icon: Map,          view: 'map'       },
+  { label: 'Analytics & Reports', icon: BarChart2,    view: 'analytics' },
+  { label: 'LGU Data Export Hub', icon: Download,     view: 'export'    },
+  { label: 'Community Reports',   icon: MessageSquare, view: 'community' },
+  { label: 'Sources',             icon: BookOpen,     view: 'sources'   },
 ]
 
-function BurgerMenuNav() {
+function BurgerMenuNav({ onNavigate, activeView }: BurgerMenuNavProps) {
   const [open, setOpen] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
 
@@ -30,15 +39,20 @@ function BurgerMenuNav() {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [open])
 
-  // Lock body scroll when open
+  // Lock body scroll when drawer is open
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  const handleNavClick = (view: AppView) => {
+    onNavigate(view)
+    setOpen(false)
+  }
+
   return (
     <>
-      {/* ── Burger Button (lives in Nav bar) ── */}
+      {/* ── Burger button ── */}
       <button
         onClick={() => setOpen(true)}
         aria-label="Open menu"
@@ -62,7 +76,7 @@ function BurgerMenuNav() {
           position: 'fixed',
           inset: 0,
           zIndex: 40,
-          background: 'rgba(0,0,0,0.35)',
+          background: 'rgba(0,0,0,0.30)',
           backdropFilter: 'blur(2px)',
           opacity: open ? 1 : 0,
           pointerEvents: open ? 'auto' : 'none',
@@ -70,7 +84,7 @@ function BurgerMenuNav() {
         }}
       />
 
-      {/* ── Sidebar Drawer ── */}
+      {/* ── Sidebar drawer ── */}
       <div
         ref={sidebarRef}
         role="dialog"
@@ -99,29 +113,17 @@ function BurgerMenuNav() {
           padding: '20px 20px 16px 24px',
           borderBottom: '1px solid #EEEAE0',
         }}>
-          <span style={{
-            fontSize: '11px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            color: '#999',
-          }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#999' }}>
             Menu
           </span>
-
           <button
             onClick={() => setOpen(false)}
             aria-label="Close menu"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'transparent',
-              color: '#666',
-              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '32px', height: '32px', borderRadius: '8px',
+              border: 'none', background: 'transparent',
+              color: '#666', cursor: 'pointer',
               transition: 'background 200ms ease, color 200ms ease',
             }}
             onMouseEnter={e => {
@@ -137,25 +139,23 @@ function BurgerMenuNav() {
           </button>
         </div>
 
-        {/* Nav Items */}
+        {/* Nav items */}
         <nav style={{ flex: 1, padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {NAV_ITEMS.map(({ label, icon: Icon }, i) => (
+          {NAV_ITEMS.map(({ label, icon: Icon, view }, i) => (
             <NavItem
-              key={label}
+              key={view}
               label={label}
               icon={<Icon size={15} strokeWidth={2} />}
+              isActive={activeView === view}
               delay={open ? 60 + i * 45 : 0}
               visible={open}
+              onClick={() => handleNavClick(view)}
             />
           ))}
         </nav>
 
         {/* Footer */}
-        <div style={{
-          padding: '16px 24px',
-          borderTop: '1px solid #EEEAE0',
-          textAlign: 'center',
-        }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #EEEAE0', textAlign: 'center' }}>
           <p style={{ fontSize: '11px', color: '#BBB', letterSpacing: '0.04em' }}>
             © 2026 TerraSense
           </p>
@@ -165,22 +165,27 @@ function BurgerMenuNav() {
   )
 }
 
-// Extracted nav item to cleanly handle hover state
+// ── Nav item row ──────────────────────────────────────────────────────────────
 function NavItem({
   label,
   icon,
+  isActive,
   delay,
   visible,
+  onClick,
 }: {
   label: string
   icon: React.ReactNode
+  isActive: boolean
   delay: number
   visible: boolean
+  onClick: () => void
 }) {
   const [hovered, setHovered] = useState(false)
 
   return (
     <button
+      onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -190,12 +195,12 @@ function NavItem({
         width: '100%',
         padding: '11px 14px',
         borderRadius: '10px',
-        border: 'none',
+        border: isActive ? '1px solid #E8E6DA' : 'none',
         textAlign: 'left',
         fontSize: '14px',
-        fontWeight: 500,
-        color: hovered ? '#1a1a1a' : '#333',
-        background: hovered ? '#F0EDE0' : 'transparent',
+        fontWeight: isActive ? 600 : 500,
+        color: isActive ? '#1a1a1a' : (hovered ? '#1a1a1a' : '#333'),
+        background: isActive ? '#F6F4E8' : (hovered ? '#F0EDE0' : 'transparent'),
         cursor: 'pointer',
         transform: visible ? 'translateX(0)' : 'translateX(-14px)',
         opacity: visible ? 1 : 0,
@@ -205,14 +210,10 @@ function NavItem({
       {/* Icon chip */}
       <span style={{
         flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '30px',
-        height: '30px',
-        borderRadius: '8px',
-        background: hovered ? '#A2CB8B' : '#F6F4E8',
-        color: hovered ? '#fff' : '#666',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '30px', height: '30px', borderRadius: '8px',
+        background: isActive ? '#A2CB8B' : (hovered ? '#A2CB8B' : '#F6F4E8'),
+        color: isActive ? '#fff' : (hovered ? '#fff' : '#666'),
         transition: 'background 200ms ease, color 200ms ease',
       }}>
         {icon}
