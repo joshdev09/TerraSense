@@ -23,6 +23,23 @@ const PAMPANGA_BBOX = {
   maxLat: 15.40,
 }
 
+// Fallback stub to use if HuggingFace API is unreachable (e.g. DNS block)
+const getFallbackStub = (bbox) => ({
+  type: 'FeatureCollection',
+  features: [
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.56, 15.13], [120.64, 15.13], [120.64, 15.22], [120.56, 15.22], [120.56, 15.13]]] }, properties: { label: 'Mabalacat–Angeles north (Fallback)', score: 0.99, category: 'urban_expansion' } },
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.57, 15.08], [120.64, 15.08], [120.64, 15.14], [120.57, 15.14], [120.57, 15.08]]] }, properties: { label: 'Angeles south (Fallback)', score: 0.95, category: 'urban_expansion' } },
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.67, 15.01], [120.75, 15.01], [120.75, 15.09], [120.67, 15.09], [120.67, 15.01]]] }, properties: { label: 'San Fernando (Fallback)', score: 0.92, category: 'urban_expansion' } },
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.47, 15.15], [120.56, 15.15], [120.56, 15.24], [120.47, 15.24], [120.47, 15.15]]] }, properties: { label: 'Porac–Angeles west (Fallback)', score: 0.88, category: 'urban_expansion' } },
+  ],
+  metadata: {
+    model: 'nvidia/LocateAnything-3B (Mock Fallback)',
+    generated_at: new Date().toISOString(),
+    feature_count: 4,
+    scene_bbox: bbox,
+  }
+})
+
 /**
  * POST /api/detect
  * Body (optional): { minLon, maxLon, minLat, maxLat, date }
@@ -43,10 +60,16 @@ router.post('/', async (req, res) => {
     console.log(`[detect] Scene fetched from: ${scene.source} (${scene.date})`)
     console.log(`[detect] Running LocateAnything-3B inference...`)
 
-    const detections = await detectUrbanExpansion(scene.imageUrl)
-    console.log(`[detect] Got ${detections.length} detections`)
+    let geojson
+    try {
+      const detections = await detectUrbanExpansion(scene.imageUrl)
+      console.log(`[detect] Got ${detections.length} detections`)
+      geojson = toGeoJSON(detections, bbox)
+    } catch (apiErr) {
+      console.warn(`[detect] HF API Error (${apiErr.message}) — using fallback stub.`)
+      geojson = getFallbackStub(bbox)
+    }
 
-    const geojson = toGeoJSON(detections, bbox)
     geojson.metadata.satellite_source = scene.source
     geojson.metadata.satellite_date   = scene.date
 
