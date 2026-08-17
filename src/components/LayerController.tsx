@@ -1,6 +1,19 @@
 import { useRef, useEffect } from 'react'
 import { Layers, Leaf, Droplets, TrendingDown } from 'lucide-react'
-import L from 'leaflet'
+import type { MapRef } from 'react-map-gl/maplibre'
+
+const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+
+const YEAR_SELECT: React.CSSProperties = {
+  width: '100%', padding: '5px 8px',
+  background: '#fff', border: '1px solid #E8E6DA',
+  borderRadius: '8px', fontSize: '12px', color: '#333',
+  cursor: 'pointer', outline: 'none', appearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 8px center',
+  paddingRight: '24px',
+}
 
 // ── Public types ──────────────────────────────────────────────────────────────
 export interface LayerState {
@@ -11,11 +24,12 @@ export interface LayerState {
 }
 
 interface LayerControllerProps {
-  map:              L.Map | null
+  map:              MapRef | null
   layers:           LayerState
   onToggle:         (key: keyof LayerState) => void
-  timelineYear:     number
-  onTimelineChange: (year: number) => void
+  fromYear:         number
+  toYear:           number
+  onTimelineChange: (range: { from: number; to: number }) => void
 }
 
 // ── Layer definitions ─────────────────────────────────────────────────────────
@@ -56,10 +70,10 @@ const LAYER_DEFS = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function LayerController({
-  map,
   layers,
   onToggle,
-  timelineYear,
+  fromYear,
+  toYear,
   onTimelineChange,
 }: LayerControllerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -67,9 +81,10 @@ export default function LayerController({
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    L.DomEvent.disableClickPropagation(el)
-    L.DomEvent.disableScrollPropagation(el)
-  }, [map])
+    const stop = (e: WheelEvent) => e.stopPropagation()
+    el.addEventListener('wheel', stop, { passive: false })
+    return () => el.removeEventListener('wheel', stop)
+  }, [])
 
   return (
     <div
@@ -149,35 +164,53 @@ export default function LayerController({
               {/* Timeline (Urban Expansion only) */}
               {hasTimeline && isActive && (
                 <div style={{
-                  paddingBottom: '10px',
+                  paddingBottom: '12px',
                   paddingLeft: '40px',
                   paddingRight: '4px',
                   animation: 'tsSlideDown 240ms ease',
                 }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '6px',
-                  }}>
-                    <span style={{ fontSize: '10.5px', fontWeight: 500, color: '#999' }}>Timeline</span>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: activeColor }}>{timelineYear}</span>
+                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#999', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Timeframe
+                  </span>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* From year */}
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '9.5px', color: '#BBB', display: 'block', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From</label>
+                      <select
+                        value={fromYear}
+                        onChange={e => onTimelineChange({ from: Number(e.target.value), to: toYear })}
+                        style={YEAR_SELECT}
+                      >
+                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+
+                    <span style={{ fontSize: '12px', color: '#CCC', marginTop: '12px', flexShrink: 0 }}>–</span>
+
+                    {/* To year */}
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '9.5px', color: '#BBB', display: 'block', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>To</label>
+                      <select
+                        value={toYear}
+                        onChange={e => onTimelineChange({ from: fromYear, to: Number(e.target.value) })}
+                        style={YEAR_SELECT}
+                      >
+                        {YEARS.filter(y => y >= fromYear).map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
                   </div>
 
-                  <input
-                    type="range"
-                    min={2018}
-                    max={2026}
-                    step={1}
-                    value={timelineYear}
-                    onChange={e => onTimelineChange(Number(e.target.value))}
-                    className="ts-range"
-                    style={{ color: activeColor, accentColor: activeColor }}
-                  />
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3px' }}>
-                    <span style={{ fontSize: '9.5px', color: '#BBB' }}>2018</span>
-                    <span style={{ fontSize: '9.5px', color: '#BBB' }}>2026</span>
+                  {/* Active range badge */}
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ fontSize: '10px', color: '#BBB' }}>Showing:</span>
+                    <span style={{
+                      fontSize: '11px', fontWeight: 700, color: activeColor,
+                      background: `${activeColor}18`, borderRadius: '5px',
+                      padding: '1px 7px',
+                    }}>
+                      {fromYear === toYear ? `${fromYear}` : `${fromYear} – ${toYear}`}
+                    </span>
                   </div>
                 </div>
               )}
