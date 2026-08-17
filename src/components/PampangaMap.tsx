@@ -130,6 +130,23 @@ export default function PampangaMap() {
     }
   }
 
+  // Pre-filter the GeoJSON features based on the timeline so we don't rely on MapLibre's expression engine
+  const filteredUrbanGeoJSON = {
+    ...urbanGeoJSON,
+    features: urbanGeoJSON.features.filter((f) => {
+      const year = f.properties?.year
+      return year ? year <= toYear : true
+    })
+  }
+
+  const filteredAgriGeoJSON = {
+    ...AGRI_STUB,
+    features: AGRI_STUB.features.filter((f) => {
+      const cleared = f.properties?.year_cleared
+      return cleared ? cleared > toYear : true
+    })
+  }
+
   return (
     <div style={{ flexGrow: 1, height: '100%', width: '100%', position: 'relative', isolation: 'isolate' }}>
 
@@ -151,13 +168,12 @@ export default function PampangaMap() {
         {/* Zoom controls */}
         <NavigationControl position="bottom-right" showCompass={false} />
 
-        {/* ── Urban Expansion layer (GeoJSON — LocateAnything-3B or stub) ── */}
+        {/* ── Urban Expansion layer ── */}
         {layers.urbanExpansion && (
-          <Source id="urban" type="geojson" data={urbanGeoJSON}>
+          <Source id="urban" type="geojson" data={filteredUrbanGeoJSON}>
             <Layer
               id="urban-fill"
               type="fill"
-              filter={['<=', ['get', 'year'], toYear]}
               paint={{
                 'fill-color':   '#D97706',
                 'fill-opacity': urbanFillOpacity,
@@ -166,7 +182,6 @@ export default function PampangaMap() {
             <Layer
               id="urban-outline"
               type="line"
-              filter={['<=', ['get', 'year'], toYear]}
               paint={{
                 'line-color':   '#D97706',
                 'line-opacity': 0.6,
@@ -176,19 +191,17 @@ export default function PampangaMap() {
           </Source>
         )}
 
-        {/* ── Remaining Agriculture layer (stub GeoJSON) ── */}
+        {/* ── Remaining Agriculture layer ── */}
         {layers.agriculture && (
-          <Source id="agri" type="geojson" data={AGRI_STUB}>
+          <Source id="agri" type="geojson" data={filteredAgriGeoJSON}>
             <Layer
               id="agri-fill"
               type="fill"
-              filter={['>', ['get', 'year_cleared'], toYear]}
               paint={{ 'fill-color': '#A2CB8B', 'fill-opacity': 0.30 }}
             />
             <Layer
               id="agri-outline"
               type="line"
-              filter={['>', ['get', 'year_cleared'], toYear]}
               paint={{ 'line-color': '#5A8E4C', 'line-opacity': 0.5, 'line-width': 1.2 }}
             />
           </Source>
