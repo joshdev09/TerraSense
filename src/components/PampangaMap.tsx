@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { MapContainer, TileLayer, WMSTileLayer, GeoJSON } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import SearchBar from './SearchBar'
-import LayerController, { BasemapType } from './LayerController'
+import LayerController, { type BasemapType } from './LayerController'
 import { detectUrban } from '../lib/detectUrban'
 
 // Disable default icon paths for leaflet, as they sometimes break in Vite
@@ -52,7 +52,7 @@ export default function PampangaMap() {
     subsidence:     false,
   })
 
-  const [basemap, setBasemap] = useState<BasemapType>('satellite')
+  const [basemap, setBasemap] = useState<BasemapType>('standard')
   const [fromYear, setFromYear] = useState(2018)
   const [toYear,   setToYear]   = useState(2026)
 
@@ -130,8 +130,8 @@ export default function PampangaMap() {
           />
         ) : (
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
             maxZoom={19}
           />
         )}
@@ -195,7 +195,7 @@ export default function PampangaMap() {
         <div style={{ pointerEvents: 'auto' }}>
           <SearchBar map={mapRef} />
         </div>
-        <div style={{ pointerEvents: 'auto' }}>
+        <div style={{ pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
           <LayerController
             map={mapRef}
             layers={layers}
@@ -206,53 +206,45 @@ export default function PampangaMap() {
             toYear={toYear}
             onTimelineChange={handleTimelineChange}
           />
-        </div>
-      </div>
+          
+          <button
+            onClick={handleRunDetection}
+            disabled={detecting}
+            title="Run NVIDIA LocateAnything-3B urban expansion detection on latest Diwata-2 imagery"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+              padding: '9px 14px', borderRadius: '12px',
+              background: detecting ? '#E8E6DA' : '#1a1a1a',
+              border: 'none', cursor: detecting ? 'not-allowed' : 'pointer',
+              fontSize: '12px', fontWeight: 700, color: detecting ? '#999' : '#fff',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+              transition: 'background 200ms',
+              letterSpacing: '0.02em',
+              width: '100%',
+            }}
+            onMouseEnter={e => { if (!detecting) (e.currentTarget as HTMLButtonElement).style.background = '#D97706' }}
+            onMouseLeave={e => { if (!detecting) (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a' }}
+          >
+            {detecting ? (
+              <>
+                <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid #999', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+                Detecting...
+              </>
+            ) : (
+              'Run AI Detection'
+            )}
+          </button>
 
-      {/* Detection button */}
-      <div style={{
-        position: 'absolute', bottom: '52px', left: '14px',
-        zIndex: 1000, pointerEvents: 'auto',
-      }}>
-        <button
-          onClick={handleRunDetection}
-          disabled={detecting}
-          title="Run NVIDIA LocateAnything-3B urban expansion detection on latest Diwata-2 imagery"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '7px',
-            padding: '9px 14px', borderRadius: '12px',
-            background: detecting ? '#E8E6DA' : '#1a1a1a',
-            border: 'none', cursor: detecting ? 'not-allowed' : 'pointer',
-            fontSize: '12px', fontWeight: 700, color: detecting ? '#999' : '#fff',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
-            transition: 'background 200ms',
-            letterSpacing: '0.02em',
-          }}
-          onMouseEnter={e => { if (!detecting) (e.currentTarget as HTMLButtonElement).style.background = '#D97706' }}
-          onMouseLeave={e => { if (!detecting) (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a' }}
-        >
-          {detecting ? (
-            <>
-              <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid #999', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
-              Detecting...
-            </>
-          ) : (
-            <>
-              <span style={{ fontSize: '14px' }}>🛰️</span>
-              Run AI Detection
-            </>
+          {detectError && (
+            <div style={{
+              background: '#FEF2F2', border: '1px solid #FECACA',
+              borderRadius: '10px', padding: '9px 12px',
+              fontSize: '11.5px', color: '#DC2626', width: '100%', lineHeight: 1.5,
+            }}>
+              {detectError}
+            </div>
           )}
-        </button>
-
-        {detectError && (
-          <div style={{
-            marginTop: '8px', background: '#FEF2F2', border: '1px solid #FECACA',
-            borderRadius: '10px', padding: '9px 12px',
-            fontSize: '11.5px', color: '#DC2626', maxWidth: '280px', lineHeight: 1.5,
-          }}>
-            {detectError}
-          </div>
-        )}
+        </div>
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
     </div>
