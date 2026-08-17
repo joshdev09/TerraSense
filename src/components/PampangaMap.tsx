@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import { MapContainer, TileLayer, WMSTileLayer, GeoJSON } from 'react-leaflet'
+import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, useMap } from 'react-leaflet'
+import { Plus, Minus } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import SearchBar from './SearchBar'
@@ -33,7 +34,45 @@ const AGRI_STUB: GeoJSON.FeatureCollection = {
 }
 
 const PAMPANGA_CENTER: [number, number] = [15.0794, 120.6200]
-const PAMPANGA_BOUNDS: [[number, number], [number, number]] = [[14.70, 120.30], [15.40, 121.05]]
+// Tighter bounds to restrict user from exploring outside Pampanga
+const PAMPANGA_BOUNDS: [[number, number], [number, number]] = [[14.75, 120.35], [15.35, 120.95]]
+
+// Custom Zoom Control to match UI theme
+function CustomZoomControl() {
+  const map = useMap()
+  return (
+    <div style={{
+      position: 'absolute', bottom: '24px', right: '14px', zIndex: 1000,
+      display: 'flex', flexDirection: 'column', gap: '8px',
+      pointerEvents: 'auto'
+    }}>
+      <button
+        onClick={(e) => { e.preventDefault(); map.zoomIn() }}
+        style={{
+          width: '36px', height: '36px', borderRadius: '12px', background: '#fff', border: '1px solid #E8E6DA',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)', color: '#666', transition: 'all 200ms'
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F6F4E8' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff' }}
+      >
+        <Plus size={18} strokeWidth={2.5} />
+      </button>
+      <button
+        onClick={(e) => { e.preventDefault(); map.zoomOut() }}
+        style={{
+          width: '36px', height: '36px', borderRadius: '12px', background: '#fff', border: '1px solid #E8E6DA',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)', color: '#666', transition: 'all 200ms'
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F6F4E8' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff' }}
+      >
+        <Minus size={18} strokeWidth={2.5} />
+      </button>
+    </div>
+  )
+}
 
 export interface LayerState {
   urbanExpansion: boolean
@@ -113,11 +152,12 @@ export default function PampangaMap() {
       <MapContainer
         center={PAMPANGA_CENTER}
         zoom={11}
-        minZoom={9}
+        minZoom={10}
         maxZoom={18}
         maxBounds={PAMPANGA_BOUNDS}
+        maxBoundsViscosity={1.0} // Act as a hard wall
         style={{ width: '100%', height: '100%' }}
-        zoomControl={true}
+        zoomControl={false} // Disable standard leaflet zoom
         ref={setMapRef}
         attributionControl={false}
       >
@@ -183,6 +223,8 @@ export default function PampangaMap() {
             opacity={0.50}
           />
         )}
+        
+        <CustomZoomControl />
       </MapContainer>
 
       {/* Floating UI overlay */}
