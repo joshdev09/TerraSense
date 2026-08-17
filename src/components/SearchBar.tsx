@@ -199,9 +199,9 @@ function DropdownItem({
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         width: '28px', height: '28px', borderRadius: '8px',
         background: hov
-          ? (loc.type === 'City' ? '#1a1a1a' : '#A2CB8B')
-          : (loc.type === 'City' ? '#F0EDE0' : '#F0EDE0'),
-        color: hov ? '#fff' : (loc.type === 'City' ? '#333' : '#666'),
+          ? (loc.type === 'City' ? '#92B57B' : '#A2CB8B')
+          : '#F0EDE0',
+        color: hov ? '#fff' : (loc.type === 'City' ? '#444' : '#666'),
         transition: 'background 150ms, color 150ms',
         fontSize: '10px',
         fontWeight: 800,
