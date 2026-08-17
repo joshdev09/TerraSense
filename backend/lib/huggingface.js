@@ -59,6 +59,7 @@ export async function detectUrbanExpansion(imageUrl) {
         headers: {
           Authorization:  `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
         },
         body: JSON.stringify(body),
       })
