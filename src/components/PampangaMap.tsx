@@ -64,19 +64,24 @@ const makePolygon = (
 const URBAN_STUB: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
   features: [
-    makePolygon(120.56, 15.13, 120.64, 15.22, { label: 'Mabalacat–Angeles north' }),
-    makePolygon(120.57, 15.08, 120.64, 15.14, { label: 'Angeles south' }),
-    makePolygon(120.67, 15.01, 120.75, 15.09, { label: 'San Fernando' }),
-    makePolygon(120.47, 15.15, 120.56, 15.24, { label: 'Porac–Angeles west' }),
+    makePolygon(120.56, 15.13, 120.64, 15.22, { label: 'Mabalacat–Angeles north', year: 2019 }),
+    makePolygon(120.57, 15.08, 120.64, 15.14, { label: 'Angeles south', year: 2021 }),
+    makePolygon(120.67, 15.01, 120.75, 15.09, { label: 'San Fernando', year: 2023 }),
+    makePolygon(120.47, 15.15, 120.56, 15.24, { label: 'Porac–Angeles west', year: 2025 }),
+    makePolygon(120.70, 14.95, 120.73, 14.98, { label: 'Santo Tomas industrial', year: 2020 }),
+    makePolygon(120.50, 14.90, 120.55, 14.95, { label: 'Guagua residential', year: 2024 }),
   ],
 }
 
 const AGRI_STUB: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
   features: [
-    makePolygon(120.73, 14.99, 120.88, 15.17, { label: 'Candaba–Mexico corridor' }),
-    makePolygon(120.68, 14.83, 120.82, 14.97, { label: 'Macabebe–Masantol lowlands' }),
-    makePolygon(120.68, 15.17, 120.85, 15.30, { label: 'Arayat–Magalang farmland' }),
+    // This one stays mostly agriculture
+    makePolygon(120.73, 14.99, 120.88, 15.17, { label: 'Candaba–Mexico corridor', year_cleared: 2030 }),
+    // This one is converted to urban in 2022
+    makePolygon(120.68, 14.83, 120.82, 14.97, { label: 'Macabebe–Masantol lowlands', year_cleared: 2022 }),
+    // Converted in 2025
+    makePolygon(120.68, 15.17, 120.85, 15.30, { label: 'Arayat–Magalang farmland', year_cleared: 2025 }),
   ],
 }
 
@@ -152,6 +157,7 @@ export default function PampangaMap() {
             <Layer
               id="urban-fill"
               type="fill"
+              filter={['<=', ['get', 'year'], toYear]}
               paint={{
                 'fill-color':   '#D97706',
                 'fill-opacity': urbanFillOpacity,
@@ -160,6 +166,7 @@ export default function PampangaMap() {
             <Layer
               id="urban-outline"
               type="line"
+              filter={['<=', ['get', 'year'], toYear]}
               paint={{
                 'line-color':   '#D97706',
                 'line-opacity': 0.6,
@@ -175,11 +182,13 @@ export default function PampangaMap() {
             <Layer
               id="agri-fill"
               type="fill"
+              filter={['>', ['get', 'year_cleared'], toYear]}
               paint={{ 'fill-color': '#A2CB8B', 'fill-opacity': 0.30 }}
             />
             <Layer
               id="agri-outline"
               type="line"
+              filter={['>', ['get', 'year_cleared'], toYear]}
               paint={{ 'line-color': '#5A8E4C', 'line-opacity': 0.5, 'line-width': 1.2 }}
             />
           </Source>
