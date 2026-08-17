@@ -1,3 +1,5 @@
+# Agent System Instructions: TerraSense Project
+
 ## Role and Objective
 You are acting as the **Lead Full-Stack Developer** for TerraSense, a web-based environmental monitoring dashboard for Pampanga. 
 
@@ -11,12 +13,12 @@ Your primary task is to integrate pre-existing machine learning models and exter
 
 *   **The Model:** `nvidia/LocateAnything-3B`
 *   **Documentation & Repository:** Read the official implementation details here: [https://github.com/NVlabs/Eagle/tree/main/Embodied](https://github.com/NVlabs/Eagle/tree/main/Embodied)
-*   **The Data Source:** Raw Diwata-2 satellite imagery of Pampanga.
+*   **The Data Source:** Use the visible Esri (ArcGIS) World Imagery satellite tiles from the frontend map.
 *   **The Workflow:**
-    1.  The backend (Node.js) fetches the raw satellite image of a specific coordinate.
-    2.  Pass the image to the `LocateAnything-3B` model.
-    3.  Prompt the model to identify urban sprawl using text prompts like: *"Locate newly built subdivisions"* or *"Locate concrete structures."*
-*   **The Output:** The model will return bounding box coordinates. Convert these coordinates into a `GeoJSON` file and send it to the frontend to render over the map.
+    1.  The frontend takes a picture (canvas extraction) of the current MapLibre view. Ensure the map is zoomed in close enough (zoom level 16 or higher).
+    2.  The backend (Node.js) receives this picture and sends it to your custom Google Colab (Free T4 NVIDIA GPU) server using the LocalTunnel link. **Important:** The backend must include the `"Bypass-Tunnel-Reminder": "true"` header in the fetch request.
+    3.  Ask the model to find objects using physical descriptions like: *"Locate rectangular metal rooftops"* or *"Locate cleared rectangular brown dirt plots."*
+*   **The Output:** The model will return bounding box pixel coordinates. The frontend must convert these pixels back into real-world GPS coordinates (GeoJSON) using the `map.unproject()` function and draw them on the map.
 
 ---
 
@@ -25,27 +27,27 @@ Your primary task is to integrate pre-existing machine learning models and exter
 **Directive:** DO NOT train or calculate physics models for sinking (subsidence) or fluid dynamics for flooding. 
 
 *   **The Role:** You are acting strictly as the **Frontend Engineer** for this task.
-*   **The Technology:** Use **MapLibre GL JS** (via `react-map-gl`) instead of Leaflet for WebGL-accelerated rendering.
+*   **The Technology:** Use **MapLibre GL JS** (via `react-map-gl`) instead of Leaflet for hardware-accelerated rendering.
 *   **The Data Source:** 
-    *   **Subsidence:** Pre-processed radar interferometry datasets from Copernicus EMSN091.
-    *   **Floods:** Pre-processed topographical datasets from Project NOAH / UP LiPAD.
+    *   **Subsidence:** Pre-processed radar datasets from Copernicus EMSN091.
+    *   **Floods:** Pre-processed map datasets from Project NOAH / UP LiPAD.
 *   **The Workflow:** 
-    1.  Download these existing datasets.
-    2.  Load them as static raster/vector tile sources into the MapLibre component.
-*   **The Output:** Build a clean UI with layer toggles (checkboxes/switches) so the user can easily turn the "Flood Risk" and "Subsidence Risk" map layers on and off alongside the massive GeoJSON Urban Expansion data.
+    1.  Download these existing data files.
+    2.  Load them as static layers into the MapLibre component.
+*   **The Output:** Build a clean user interface with simple toggles (checkboxes or switches) so the user can easily turn the "Flood Risk" and "Subsidence Risk" map layers on and off over the satellite map.
 
 ---
 
 ## Task 3: LGU Data Export Hub (The AI Integration)
 
-**Directive:** DO NOT train a custom data analysis model. Use a pre-trained LLM API for natural language generation.
+**Directive:** DO NOT train a custom data analysis model. Use a pre-trained LLM API to generate natural text.
 
 *   **The Model:** Gemini 2.5 Flash-Lite API.
 *   **The Workflow:** 
-    1.  The frontend calculates raw map metrics based on the user's current view (e.g., `{"location": "San Fernando", "lost_hectares": 400}`).
-    2.  Pass this raw JSON data payload into the Gemini API prompt.
-    3.  Instruct the LLM to synthesize this data into a formal, easy-to-read executive summary.
-*   **The Output:** The LLM returns a plain-text executive summary. Display this text in the LGU Data Export Hub and allow the user to download it as a professional report.
+    1.  The frontend calculates simple map numbers based on what the user is looking at (e.g., `{"location": "San Fernando", "lost_hectares": 400}`).
+    2.  Pass this basic JSON data into the Gemini API prompt.
+    3.  Instruct the AI to write a formal, easy-to-read summary of this data.
+*   **The Output:** The AI returns a plain-text summary. Display this text in the LGU Data Export Hub and let the user download it as a report.
 
 ---
 
