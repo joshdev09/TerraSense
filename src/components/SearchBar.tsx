@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, X, MapPin } from 'lucide-react'
-import type { MapRef } from 'react-map-gl/maplibre'
+import L from 'leaflet'
 import { PAMPANGA_LOCATIONS, type PampangaLocation } from '../data/pampangaLocations'
 
 interface SearchBarProps {
-  map: MapRef | null
+  map: L.Map | null
 }
 
 function SearchBar({ map }: SearchBarProps) {
@@ -32,17 +32,14 @@ function SearchBar({ map }: SearchBarProps) {
 
   const handleSelect = (loc: PampangaLocation) => {
     if (map) {
-      // MapLibre flyTo: center is [lng, lat]
-      map.flyTo({
-        center:   [loc.coords[1], loc.coords[0]],
-        zoom:     loc.zoom,
-        duration: 1200,
-        essential: true,
-      })
+      // Leaflet flyTo: center is [lat, lng]
+      map.flyTo(
+        [loc.coords[0], loc.coords[1]],
+        loc.zoom,
+        { duration: 1.2 }
+      )
     }
-    // Set the full name in the input — do NOT call .blur() here;
-    // forcing a DOM blur races with React's batched state update and
-    // causes the controlled input to visually flash back to the old value.
+    // Set the full name in the input
     setQuery(loc.type === 'Barangay' ? `${loc.name}, ${loc.parentCity}` : loc.name)
     setFocused(false)
   }

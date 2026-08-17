@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
-import { Layers, Leaf, Droplets, TrendingDown } from 'lucide-react'
-import type { MapRef } from 'react-map-gl/maplibre'
+import { Layers, Leaf, Droplets, TrendingDown, Map as MapIcon } from 'lucide-react'
+import L from 'leaflet'
 
 const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
@@ -23,10 +23,14 @@ export interface LayerState {
   subsidence:     boolean
 }
 
+export type BasemapType = 'satellite' | 'standard'
+
 interface LayerControllerProps {
-  map:              MapRef | null
+  map:              L.Map | null
   layers:           LayerState
+  basemap:          BasemapType
   onToggle:         (key: keyof LayerState) => void
+  onBasemapChange:  (type: BasemapType) => void
   fromYear:         number
   toYear:           number
   onTimelineChange: (range: { from: number; to: number }) => void
@@ -70,21 +74,24 @@ const LAYER_DEFS = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function LayerController({
+  map,
   layers,
+  basemap,
   onToggle,
+  onBasemapChange,
   fromYear,
   toYear,
   onTimelineChange,
 }: LayerControllerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Prevent map interaction when using the controller
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const stop = (e: WheelEvent) => e.stopPropagation()
-    el.addEventListener('wheel', stop, { passive: false })
-    return () => el.removeEventListener('wheel', stop)
-  }, [])
+    L.DomEvent.disableClickPropagation(el)
+    L.DomEvent.disableScrollPropagation(el)
+  }, [map])
 
   return (
     <div
@@ -169,6 +176,44 @@ export default function LayerController({
                   paddingRight: '4px',
                   animation: 'tsSlideDown 240ms ease',
                 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <MapIcon size={14} color="#D97706" />
+                    <h3 style={{ fontSize: '11px', fontWeight: 800, color: '#999', letterSpacing: '0.05em' }}>
+                      BASEMAP
+                    </h3>
+                  </div>
+        
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    <button
+                      onClick={() => onBasemapChange('satellite')}
+                      style={{
+                        flex: 1, padding: '6px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                        border: basemap === 'satellite' ? '1px solid #D97706' : '1px solid #333',
+                        background: basemap === 'satellite' ? 'rgba(217, 119, 6, 0.1)' : 'transparent',
+                        color: basemap === 'satellite' ? '#D97706' : '#999',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Satellite
+                    </button>
+                    <button
+                      onClick={() => onBasemapChange('standard')}
+                      style={{
+                        flex: 1, padding: '6px', fontSize: '11px', fontWeight: 600, borderRadius: '6px',
+                        border: basemap === 'standard' ? '1px solid #D97706' : '1px solid #333',
+                        background: basemap === 'standard' ? 'rgba(217, 119, 6, 0.1)' : 'transparent',
+                        color: basemap === 'standard' ? '#D97706' : '#999',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Standard
+                    </button>
+                  </div>
+
+                  <h3 style={{ fontSize: '11px', fontWeight: 800, color: '#999', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                    TIME SETTINGS
+                  </h3>
+                  
                   <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#999', display: 'block', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Timeframe
                   </span>
