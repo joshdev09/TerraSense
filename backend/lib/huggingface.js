@@ -5,11 +5,11 @@
  * Model: https://huggingface.co/nvidia/LocateAnything-3B
  * Docs:  https://github.com/NVlabs/Eagle/tree/main/Embodied
  *
- * The model accepts an image URL + text prompt and returns bounding boxes
  * in the format: [x_min, y_min, x_max, y_max] normalised to [0, 1].
  */
 
-const apiUrl = "https://router.huggingface.co/hf-inference/models/nvidia/LocateAnything-3B".trim()
+// Reads your Google Colab ngrok/localtunnel URL from the .env file!
+const apiUrl = (process.env.COLAB_ENDPOINT_URL || "https://router.huggingface.co/hf-inference/models/nvidia/LocateAnything-3B").trim()
 
 const URBAN_PROMPTS = [
   'Locate newly built subdivisions and residential estates.',
