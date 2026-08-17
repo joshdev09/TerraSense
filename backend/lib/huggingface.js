@@ -9,9 +9,7 @@
  * in the format: [x_min, y_min, x_max, y_max] normalised to [0, 1].
  */
 
-const HF_ENDPOINT =
-  process.env.HF_ENDPOINT_URL ??
-  'https://api-inference.huggingface.co/models/nvidia/LocateAnything-3B'
+const apiUrl = "https://router.huggingface.co/hf-inference/models/nvidia/LocateAnything-3B".trim()
 
 const URBAN_PROMPTS = [
   'Locate newly built subdivisions and residential estates.',
@@ -43,7 +41,7 @@ export async function detectUrbanExpansion(imageUrl) {
       },
     }
 
-    const res = await fetch(HF_ENDPOINT, {
+    const res = await fetch(apiUrl, {
       method:  'POST',
       headers: {
         Authorization:  `Bearer ${token}`,
@@ -56,7 +54,7 @@ export async function detectUrbanExpansion(imageUrl) {
     if (res.status === 503) {
       // Model is loading — wait and retry once
       await new Promise(r => setTimeout(r, 8000))
-      const retry = await fetch(HF_ENDPOINT, {
+      const retry = await fetch(apiUrl, {
         method:  'POST',
         headers: {
           Authorization:  `Bearer ${token}`,
