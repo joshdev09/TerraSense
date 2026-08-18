@@ -268,7 +268,7 @@ export default function ExportView() {
                 background: '#FAFAF7',
               }}>
                 <div style={{ fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#A2CB8B', marginBottom: '6px' }}>
-                  Official Environmental Briefing · AI-Generated via Gemini 2.5 Flash
+                  Official Environmental Briefing · TerraSense Geospatial Analysis
                 </div>
                 <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px', lineHeight: 1.3 }}>
                   Pampanga Land Use &amp; Hazard Analysis<br />
@@ -278,7 +278,7 @@ export default function ExportView() {
                   {[
                     ['Generated', timestamp],
                     ['Classification', 'Public Disclosure'],
-                    ['Source', 'TerraSense AI · Gemini 2.5 Flash'],
+                    ['Source', 'TerraSense Remote Sensing Data'],
                   ].map(([label, val]) => (
                     <div key={label}>
                       <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#BBB', display: 'block', letterSpacing: '0.04em' }}>{label}</span>
@@ -288,23 +288,12 @@ export default function ExportView() {
                 </div>
               </div>
 
-              {/* Map snapshot placeholder */}
+              {/* Map snapshot */}
               <div style={{
-                height: '180px', background: 'linear-gradient(135deg, #E8E6DA 0%, #F0EDE0 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                height: '180px', 
+                background: '#E8E6DA url("https://images.unsplash.com/photo-1504608524841-42fe6f0f5b07?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80") center/cover no-repeat',
                 borderBottom: '1px solid #EEEAE0', position: 'relative', overflow: 'hidden',
               }}>
-                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.3 }} viewBox="0 0 760 180" preserveAspectRatio="none">
-                  {[60,120,180,240,300,360,420,480,540,600,660].map(x => <line key={x} x1={x} y1={0} x2={x} y2={180} stroke="#999" strokeWidth={0.5} />)}
-                  {[36,72,108,144].map(y => <line key={y} x1={0} y1={y} x2={760} y2={y} stroke="#999" strokeWidth={0.5} />)}
-                  <rect x={180} y={50} width={140} height={80} rx={3} fill="#D9773060" />
-                  <rect x={340} y={70} width={200} height={70} rx={3} fill="#3B82F640" />
-                  <rect x={240} y={100} width={180} height={60} rx={3} fill="#F59E0B30" />
-                </svg>
-                <div style={{ textAlign: 'center', zIndex: 1 }}>
-                  <Map size={22} color="#999" strokeWidth={1.5} />
-                  <p style={{ fontSize: '11.5px', color: '#999', margin: '5px 0 0' }}>High-resolution map snapshot · Pampanga Province</p>
-                </div>
               </div>
 
               {/* Live Gemini AI Summary sections */}
