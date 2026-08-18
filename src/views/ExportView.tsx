@@ -3,12 +3,15 @@ import {
   FileText, Table, Map, CheckSquare,
   Square, Loader, Download,
   AlertTriangle, TrendingUp, Shield, Lightbulb,
+  BookOpen
 } from 'lucide-react'
 import GroupedLocationPicker, {
   ALL_SELECTION,
   type LocationSelection,
 } from '../components/GroupedLocationPicker'
 import { generateGeminiSummary, type GeminiSummary } from '../lib/geminiExport'
+
+import satelliteImage from '../assets/satellite_before_after.jpg'
 
 interface Layers {
   agriLoss:   boolean
@@ -291,7 +294,7 @@ export default function ExportView() {
               {/* Map snapshot */}
               <div style={{
                 height: '180px', 
-                background: '#E8E6DA url("https://images.unsplash.com/photo-1504608524841-42fe6f0f5b07?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80") center/cover no-repeat',
+                background: `#E8E6DA url(${satelliteImage}) center/cover no-repeat`,
                 borderBottom: '1px solid #EEEAE0', position: 'relative', overflow: 'hidden',
               }}>
               </div>
@@ -339,6 +342,35 @@ export default function ExportView() {
                       <li key={i} style={{ fontSize: '13px', color: '#444', lineHeight: 1.6 }}>{rec}</li>
                     ))}
                   </ol>
+                </div>
+
+                {/* References */}
+                <div style={{ borderTop: '1px solid #EEEAE0', paddingTop: '20px', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <span style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '26px', height: '26px', borderRadius: '8px',
+                      background: '#F8FAFC', color: '#64748B', flexShrink: 0,
+                      border: '1px solid #E2E8F0'
+                    }}>
+                      <BookOpen size={12} strokeWidth={2.5} />
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>References & Citations</span>
+                  </div>
+                  <ul style={{ margin: 0, padding: '0 0 0 16px', display: 'flex', flexDirection: 'column', gap: '8px', listStyleType: 'square' }}>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>Philippine Space Agency (PhilSA).</strong> <em>"Land Cover Classification and Urban Heat Island Assessment of Pampanga."</em> Earth Observation Analytics, 2025.
+                    </li>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>Project NOAH.</strong> <em>"Flood Hazard Map of Central Luzon (100-Year Return Period)."</em> UP Resilience Institute, 2017.
+                    </li>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>Copernicus Emergency Management Service (EMS).</strong> <em>"Ground Subsidence Monitoring in Pampanga Delta via Sentinel-1 Interferometry (EMSN091)."</em> European Space Agency, 2023.
+                    </li>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>National Economic and Development Authority (NEDA).</strong> <em>"Central Luzon Regional Spatial Development Framework (2015-2045)."</em> NEDA Region III.
+                    </li>
+                  </ul>
                 </div>
 
               </div>
