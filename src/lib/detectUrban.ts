@@ -16,6 +16,8 @@ export interface DetectionBBox {
   minLat?: number
   maxLat?: number
   date?:   string   // ISO date string, e.g. "2024-06-01"
+  imageBase64?: string
+  prompt?: string
 }
 
 export interface DetectionResult {

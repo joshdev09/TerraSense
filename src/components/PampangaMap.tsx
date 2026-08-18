@@ -115,8 +115,29 @@ export default function PampangaMap() {
   const handleRunDetection = async () => {
     setDetecting(true)
     setDetectError(null)
+
+    let imageBase64 = ''
     try {
-      const geojson = await detectUrban()
+      // MapLibre uses .mapboxgl-canvas, but since we are using React-Leaflet, 
+      // we must use html2canvas to capture the Leaflet container instead.
+      const mapEl = document.querySelector('.leaflet-container') as HTMLElement
+      if (mapEl) {
+        // Dynamically import html2canvas to avoid SSR issues or slow initial loads
+        const html2canvas = (await import('html2canvas')).default
+        const canvas = await html2canvas(mapEl, { useCORS: true })
+        imageBase64 = canvas.toDataURL("image/jpeg")
+      } else {
+        console.error("Map canvas not found.")
+      }
+    } catch (e) {
+      console.warn("Could not capture map screenshot", e)
+    }
+
+    try {
+      const geojson = await detectUrban({ 
+        imageBase64, 
+        prompt: "rectangular metal rooftops" 
+      })
       setUrbanGeoJSON(geojson)
       // Auto-enable the Urban Expansion layer
       setLayers(prev => ({ ...prev, urbanExpansion: true }))

@@ -2,88 +2,95 @@
  * detect.js  —  POST /api/detect
  * ─────────────────────────────────────────────────────────────────────────────
  * Orchestrates the full urban-expansion detection pipeline:
- *   1. Fetch satellite image from DIWATA-2 / Sentinel-2
- *   2. Pass image to nvidia/LocateAnything-3B via Hugging Face
- *   3. Convert bounding boxes to GeoJSON
- *   4. Return GeoJSON FeatureCollection to the frontend
+ *   1. Receives WebGL canvas snapshot (Base64) from the React frontend
+ *   2. Forwards image to the custom NVIDIA LocateAnything-3B Colab Server
+ *   3. Returns raw pixel bounding boxes to the frontend for GeoJSON projection
+ * 
+ * NOTE: Legacy DIWATA-2/Sentinel-2 and Hugging Face API logic has been 
+ * removed in favor of the Canvas Extraction + Colab GPU method.
  */
 
 import { Router } from 'express'
-import { fetchSatelliteScene } from '../lib/diwata.js'
-import { detectUrbanExpansion } from '../lib/huggingface.js'
-import { toGeoJSON } from '../lib/toGeoJSON.js'
+import fetch from 'node-fetch'
+import fs from 'fs'
 
 const router = Router()
 
-// Default Pampanga province bounding box
-const PAMPANGA_BBOX = {
-  minLon: 120.30,
-  maxLon: 121.05,
-  minLat: 14.70,
-  maxLat: 15.40,
-}
-
-// Fallback stub to use if HuggingFace API is unreachable (e.g. DNS block)
-const getFallbackStub = (bbox) => ({
-  type: 'FeatureCollection',
-  features: [
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.56, 15.13], [120.64, 15.13], [120.64, 15.22], [120.56, 15.22], [120.56, 15.13]]] }, properties: { label: 'Mabalacat–Angeles north', score: 0.99, year: 2019 } },
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.57, 15.08], [120.64, 15.08], [120.64, 15.14], [120.57, 15.14], [120.57, 15.08]]] }, properties: { label: 'Angeles south expansion', score: 0.95, year: 2021 } },
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.67, 15.01], [120.75, 15.01], [120.75, 15.09], [120.67, 15.09], [120.67, 15.01]]] }, properties: { label: 'San Fernando bypass build', score: 0.92, year: 2023 } },
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.47, 15.15], [120.56, 15.15], [120.56, 15.24], [120.47, 15.24], [120.47, 15.15]]] }, properties: { label: 'Porac commercial zone', score: 0.88, year: 2025 } },
-    // A few more smaller patches for better visual effect over time
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.70, 14.95], [120.73, 14.95], [120.73, 14.98], [120.70, 14.98], [120.70, 14.95]]] }, properties: { label: 'Santo Tomas industrial', score: 0.85, year: 2020 } },
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.50, 14.90], [120.55, 14.90], [120.55, 14.95], [120.50, 14.95], [120.50, 14.90]]] }, properties: { label: 'Guagua residential', score: 0.82, year: 2024 } },
-    // New Clark City (specifically where the user zoomed in)
-    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.51, 15.31], [120.56, 15.31], [120.56, 15.36], [120.51, 15.36], [120.51, 15.31]]] }, properties: { label: 'New Clark City Development', score: 0.98, year: 2022 } },
-  ],
-  metadata: {
-    model: 'nvidia/LocateAnything-3B (Mock Fallback)',
-    generated_at: new Date().toISOString(),
-    feature_count: 7,
-    scene_bbox: bbox,
-    satellite_source: 'Fallback Archive',
-    satellite_date: new Date().toISOString(),
-  }
-})
-
-/**
- * POST /api/detect
- * Body (optional): { minLon, maxLon, minLat, maxLat, date }
- * Returns: GeoJSON FeatureCollection
- */
 router.post('/', async (req, res) => {
   try {
-    const bbox = {
-      minLon: req.body.minLon ?? PAMPANGA_BBOX.minLon,
-      maxLon: req.body.maxLon ?? PAMPANGA_BBOX.maxLon,
-      minLat: req.body.minLat ?? PAMPANGA_BBOX.minLat,
-      maxLat: req.body.maxLat ?? PAMPANGA_BBOX.maxLat,
+    const { imageBase64, prompt = 'rectangular metal rooftops' } = req.body
+    
+    // 1. Log the incoming request from React
+    console.log(`\n==================================================`)
+    console.log(`[${new Date().toISOString()}] 🛰️ INCOMING SATELLITE SCAN`)
+    console.log(`==================================================`)
+    console.log(`[FRONTEND] 📸 Received WebGL Canvas Extraction...`)
+    console.log(`[FRONTEND] 🎯 Target Feature: "${prompt}"`)
+    
+    if (!imageBase64) {
+      console.log(`[ERROR]    ❌ No image payload received.`);
+      return res.status(400).json({ ok: false, error: 'Missing imageBase64 payload' });
     }
-    const date = req.body.date ?? null
 
-    let geojson
+    console.log(`[DATA]     📦 Image Payload Size: ${(imageBase64.length / 1024).toFixed(2)} KB`)
+
     try {
-      console.log(`[detect] Fetching satellite scene for bbox:`, bbox)
-      const scene = await fetchSatelliteScene({ ...bbox, date })
-      console.log(`[detect] Scene fetched from: ${scene.source} (${scene.date})`)
-      console.log(`[detect] Running LocateAnything-3B inference...`)
-
-      const detections = await detectUrbanExpansion(scene.imageUrl)
-      console.log(`[detect] Got ${detections.length} detections`)
-      geojson = toGeoJSON(detections, bbox)
-      
-      geojson.metadata.satellite_source = scene.source
-      geojson.metadata.satellite_date   = scene.date
-    } catch (apiErr) {
-      console.warn(`[detect] External API Blocked (${apiErr.message}) — using fallback stub.`)
-      geojson = getFallbackStub(bbox)
+      // Strip the Base64 header 
+      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+      // Convert text to binary buffer
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      // Save locally with a timestamp
+      const fileName = `satellite_capture_${Date.now()}.jpg`;
+      fs.writeFileSync(fileName, imageBuffer);
+      console.log(`[SYSTEM]   💾 Saved snapshot locally as: ${fileName}`);
+    } catch (saveError) {
+      console.log(`[SYSTEM]   ⚠️ Could not save image to folder: ${saveError.message}`);
     }
 
-    res.json({ ok: true, data: geojson })
+    // Ensure you replace this URL with your live Colab LocalTunnel link during testing
+    const apiUrl = "https://warm-peas-cry.loca.lt" 
+    
+    // 2. Log the hand-off to the Colab Server
+    console.log(`\n[NETWORK]  🚀 Routing to NVIDIA LocateAnything-3B GPU Cluster...`)
+    console.log(`[NETWORK]  🔗 Endpoint: ${apiUrl}`)
+    
+    const startTime = Date.now()
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Bypass-Tunnel-Reminder": "true",
+      },
+      body: JSON.stringify({
+        image: imageBase64,
+        prompt: prompt,
+      }),
+    })
+
+    const data = await response.json()
+    const inferenceTime = ((Date.now() - startTime) / 1000).toFixed(2)
+
+    // 3. Log the successful return and display the raw AI data
+    if (data.success) {
+      console.log(`[NETWORK]  ✅ 200 OK: Inference completed in ${inferenceTime} seconds.`)
+      console.log(`\n[AI MODEL] 🧠 Raw Output Tensors (Pixel Bounding Boxes):`)
+      console.log(data.detections) 
+      
+      console.log(`\n[BACKEND]  🗺️ Sending pixel coordinates back to React for GPS projection...`)
+      console.log(`==================================================\n`)
+      
+      // Returns { ok: true, data: "<box_2d>..." } to match your frontend expectations
+      return res.status(200).json({ ok: true, data: data.detections })
+    } else {
+      console.log(`[ERROR]    ❌ AI Server failed to process the image.`)
+      console.log(data.error)
+      return res.status(500).json({ ok: false, error: data.error })
+    }
+
   } catch (err) {
-    console.error('[detect] Error:', err.message)
-    res.status(500).json({ ok: false, error: err.message })
+    console.log(`[FATAL]    🚨 Pipeline Crash: ${err.message}`)
+    return res.status(500).json({ ok: false, error: err.message })
   }
 })
 
