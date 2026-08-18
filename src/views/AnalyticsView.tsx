@@ -163,7 +163,7 @@ export default function AnalyticsView() {
         </div>
 
         {/* ── Main grid: table + chart ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '14px', marginBottom: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '14px', marginBottom: '14px', alignItems: 'flex-start' }}>
 
           {/* Watchlist table */}
           <div style={{
