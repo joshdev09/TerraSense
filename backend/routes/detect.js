@@ -56,8 +56,11 @@ router.post('/', async (req, res) => {
       console.log(`[SYSTEM]   ⚠️ Could not save image to folder: ${saveError.message}`);
     }
 
-    // Ensure you replace this URL with your live Colab LocalTunnel link during testing
-    const apiUrl = "https://bitter-garlics-heal.loca.lt" 
+    // Read the dynamic URL from .env so the user doesn't hit dead tunnels (502 Bad Gateway)
+    const apiUrl = process.env.COLAB_ENDPOINT_URL
+    if (!apiUrl) {
+      throw new Error("COLAB_ENDPOINT_URL is not set in backend/.env")
+    }
     
     // 2. Log the hand-off to the Colab Server
     console.log(`\n[NETWORK]  🚀 Routing to NVIDIA LocateAnything-3B GPU Cluster...`)
@@ -77,7 +80,13 @@ router.post('/', async (req, res) => {
       }),
     })
 
-    const data = await response.json()
+    const responseText = await response.text()
+    let data;
+    try {
+      data = JSON.parse(responseText)
+    } catch (e) {
+      throw new Error(`AI Server returned an invalid response (${response.status}): ${responseText.substring(0, 50)}...`)
+    }
     const inferenceTime = ((Date.now() - startTime) / 1000).toFixed(2)
 
     // 3. Log the successful return and display the raw AI data
