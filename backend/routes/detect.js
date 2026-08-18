@@ -72,10 +72,8 @@ router.post('/', async (req, res) => {
         "Bypass-Tunnel-Reminder": "true",
       },
       body: JSON.stringify({
-        inputs: {
-          image: imageBase64,
-          text: prompt
-        }
+        image: imageBase64,
+        text: prompt
       }),
     })
 
