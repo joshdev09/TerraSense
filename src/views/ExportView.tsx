@@ -296,6 +296,25 @@ export default function ExportView() {
               }}>
               </div>
 
+              {/* Key Metrics Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: '1px solid #EEEAE0', background: '#fff' }}>
+                <div style={{ padding: '18px 28px', borderRight: '1px solid #EEEAE0' }}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Total Farmland Lost</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>4,820 ha</div>
+                  <div style={{ fontSize: '11.5px', color: '#DC2626', fontWeight: 600, marginTop: '6px' }}>−23.4% since 2018</div>
+                </div>
+                <div style={{ padding: '18px 28px', borderRight: '1px solid #EEEAE0' }}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Rate of Expansion</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>602 ha / yr</div>
+                  <div style={{ fontSize: '11.5px', color: '#D97706', fontWeight: 600, marginTop: '6px' }}>+8.3% vs. last year</div>
+                </div>
+                <div style={{ padding: '18px 28px' }}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Remaining Arable Land</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>38.2%</div>
+                  <div style={{ fontSize: '11.5px', color: '#DC2626', fontWeight: 600, marginTop: '6px' }}>−5.1 pp since 2018</div>
+                </div>
+              </div>
+
               {/* Live Gemini AI Summary sections */}
               <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
