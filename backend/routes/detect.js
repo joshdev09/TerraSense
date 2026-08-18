@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
     }
 
     // Ensure you replace this URL with your live Colab LocalTunnel link during testing
-    const apiUrl = "https://warm-peas-cry.loca.lt" 
+    const apiUrl = "https://bitter-garlics-heal.loca.lt" 
     
     // 2. Log the hand-off to the Colab Server
     console.log(`\n[NETWORK]  🚀 Routing to NVIDIA LocateAnything-3B GPU Cluster...`)
@@ -72,8 +72,10 @@ router.post('/', async (req, res) => {
         "Bypass-Tunnel-Reminder": "true",
       },
       body: JSON.stringify({
-        image: imageBase64,
-        prompt: prompt,
+        inputs: {
+          image: imageBase64,
+          text: prompt
+        }
       }),
     })
 
@@ -81,7 +83,7 @@ router.post('/', async (req, res) => {
     const inferenceTime = ((Date.now() - startTime) / 1000).toFixed(2)
 
     // 3. Log the successful return and display the raw AI data
-    if (data.success) {
+    if (data.detections) {
       console.log(`[NETWORK]  ✅ 200 OK: Inference completed in ${inferenceTime} seconds.`)
       console.log(`\n[AI MODEL] 🧠 Raw Output Tensors (Pixel Bounding Boxes):`)
       console.log(data.detections) 
@@ -93,8 +95,8 @@ router.post('/', async (req, res) => {
       return res.status(200).json({ ok: true, data: data.detections })
     } else {
       console.log(`[ERROR]    ❌ AI Server failed to process the image.`)
-      console.log(data.error)
-      return res.status(500).json({ ok: false, error: data.error })
+      console.log(data.error || data.detail || data)
+      return res.status(500).json({ ok: false, error: data.error || data.detail || 'Unknown error' })
     }
 
   } catch (err) {
