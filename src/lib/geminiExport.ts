@@ -24,7 +24,7 @@ export interface GeminiSummary {
 }
 
 const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
 
 function buildPrompt(m: ExportMetrics): string {
   const layerList = [
