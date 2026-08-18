@@ -43,6 +43,9 @@ export default function ExportView() {
   const [generated, setGenerated]       = useState(false)
   const [geminiSummary, setGeminiSummary] = useState<GeminiSummary | null>(null)
   const [geminiError,   setGeminiError]   = useState<string | null>(null)
+  const [capturedImage, setCapturedImage] = useState<string | null>(() => {
+    try { return localStorage.getItem('terrasense_latest_capture') } catch { return null }
+  })
   const reportRef = useRef<HTMLDivElement>(null)
 
   const handleFromYear = (y: number) => {
@@ -294,7 +297,7 @@ export default function ExportView() {
               {/* Map snapshot */}
               <div style={{
                 height: '180px', 
-                background: `#E8E6DA url(${satelliteImage}) center/cover no-repeat`,
+                background: `#E8E6DA url(${capturedImage || satelliteImage}) center/cover no-repeat`,
                 borderBottom: '1px solid #EEEAE0', position: 'relative', overflow: 'hidden',
               }}>
               </div>

@@ -126,6 +126,11 @@ export default function PampangaMap() {
         const html2canvas = (await import('html2canvas')).default
         const canvas = await html2canvas(mapEl, { useCORS: true })
         imageBase64 = canvas.toDataURL("image/jpeg")
+        try {
+          localStorage.setItem('terrasense_latest_capture', imageBase64)
+        } catch (e) {
+          console.warn("Could not save capture to localStorage", e)
+        }
       } else {
         console.error("Map canvas not found.")
       }
