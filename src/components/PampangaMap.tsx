@@ -135,8 +135,7 @@ export default function PampangaMap() {
 
     try {
       const geojson = await detectUrban({ 
-        imageBase64, 
-        prompt: "rectangular metal rooftops" 
+        imageBase64 
       })
       setUrbanGeoJSON(geojson)
       // Auto-enable the Urban Expansion layer
