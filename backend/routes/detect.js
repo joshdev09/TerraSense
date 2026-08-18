@@ -39,10 +39,19 @@ router.post('/', async (req, res) => {
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
       // Convert text to binary buffer
       const imageBuffer = Buffer.from(base64Data, 'base64');
-      // Save locally with a timestamp
+      
+      // Ensure the 'satellite-captured' folder exists
+      const dirPath = 'satellite-captured';
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+
+      // Save locally with a timestamp inside the new folder
       const fileName = `satellite_capture_${Date.now()}.jpg`;
-      fs.writeFileSync(fileName, imageBuffer);
-      console.log(`[SYSTEM]   💾 Saved snapshot locally as: ${fileName}`);
+      const filePath = `${dirPath}/${fileName}`;
+      
+      fs.writeFileSync(filePath, imageBuffer);
+      console.log(`[SYSTEM]   💾 Saved snapshot locally as: ${filePath}`);
     } catch (saveError) {
       console.log(`[SYSTEM]   ⚠️ Could not save image to folder: ${saveError.message}`);
     }
