@@ -1,66 +1,47 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, X, MapPin } from 'lucide-react'
 import L from 'leaflet'
-
-interface Location {
-  name: string
-  coords: [number, number]
-  type: string
-}
-
-const LOCATIONS: Location[] = [
-  { name: 'Angeles City',         coords: [15.1450, 120.5886], type: 'City' },
-  { name: 'City of San Fernando', coords: [15.0244, 120.6928], type: 'Capital City' },
-  { name: 'Apalit',               coords: [14.9517, 120.7597], type: 'Municipality' },
-  { name: 'Arayat',               coords: [15.1523, 120.7694], type: 'Municipality' },
-  { name: 'Bacolor',              coords: [14.9900, 120.6557], type: 'Municipality' },
-  { name: 'Candaba',              coords: [15.0963, 120.8271], type: 'Municipality' },
-  { name: 'Floridablanca',        coords: [14.9971, 120.4998], type: 'Municipality' },
-  { name: 'Guagua',               coords: [14.9669, 120.6355], type: 'Municipality' },
-  { name: 'Lubao',                coords: [14.9253, 120.5993], type: 'Municipality' },
-  { name: 'Mabalacat',            coords: [15.2108, 120.5754], type: 'Municipality' },
-  { name: 'Macabebe',             coords: [14.9086, 120.7154], type: 'Municipality' },
-  { name: 'Magalang',             coords: [15.2109, 120.6634], type: 'Municipality' },
-  { name: 'Masantol',             coords: [14.8900, 120.7280], type: 'Municipality' },
-  { name: 'Mexico',               coords: [15.0653, 120.7224], type: 'Municipality' },
-  { name: 'Minalin',              coords: [14.9760, 120.7474], type: 'Municipality' },
-  { name: 'Porac',                coords: [15.1031, 120.5369], type: 'Municipality' },
-  { name: 'San Luis',             coords: [15.0340, 120.7907], type: 'Municipality' },
-  { name: 'San Simon',            coords: [15.0235, 120.7852], type: 'Municipality' },
-  { name: 'Santa Ana',            coords: [15.0861, 120.7530], type: 'Municipality' },
-  { name: 'Santa Rita',           coords: [15.0036, 120.6248], type: 'Municipality' },
-  { name: 'Santo Tomas',          coords: [15.0517, 120.7447], type: 'Municipality' },
-]
+import { PAMPANGA_LOCATIONS, type PampangaLocation } from '../data/pampangaLocations'
 
 interface SearchBarProps {
   map: L.Map | null
 }
 
 function SearchBar({ map }: SearchBarProps) {
-  const [query, setQuery]   = useState('')
+  const [query,   setQuery]   = useState('')
   const [focused, setFocused] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef     = useRef<HTMLInputElement>(null)
 
-  const filtered = query.trim().length > 0
-    ? LOCATIONS.filter(l => l.name.toLowerCase().includes(query.toLowerCase()))
+  // Filter: match name OR parentCity, cap at 8 results to keep the list compact
+  const filtered: PampangaLocation[] = query.trim().length > 0
+    ? PAMPANGA_LOCATIONS.filter(l =>
+        l.name.toLowerCase().includes(query.toLowerCase()) ||
+        l.parentCity.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8)
     : []
 
-  // Prevent Leaflet panning/zooming when interacting with this overlay
+  // Prevent map consuming scroll events inside this overlay
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    L.DomEvent.disableClickPropagation(el)
-    L.DomEvent.disableScrollPropagation(el)
+    const stop = (e: WheelEvent) => e.stopPropagation()
+    el.addEventListener('wheel', stop, { passive: false })
+    return () => el.removeEventListener('wheel', stop)
   }, [])
 
-  const handleSelect = (loc: Location) => {
+  const handleSelect = (loc: PampangaLocation) => {
     if (map) {
-      map.flyTo(loc.coords, 13, { duration: 1.2, easeLinearity: 0.25 })
+      // Leaflet flyTo: center is [lat, lng]
+      map.flyTo(
+        [loc.coords[0], loc.coords[1]],
+        loc.zoom,
+        { duration: 1.2 }
+      )
     }
-    setQuery(loc.name)
+    // Set the full name in the input
+    setQuery(loc.type === 'Barangay' ? `${loc.name}, ${loc.parentCity}` : loc.name)
     setFocused(false)
-    inputRef.current?.blur()
   }
 
   const clearQuery = () => {
@@ -71,7 +52,7 @@ function SearchBar({ map }: SearchBarProps) {
   const showDropdown = focused && filtered.length > 0
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '256px' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: '272px' }}>
 
       {/* ── Input ── */}
       <div style={{
@@ -99,7 +80,7 @@ function SearchBar({ map }: SearchBarProps) {
           onChange={e => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 160)}
-          placeholder="Search municipality…"
+          placeholder="Search city or barangay…"
           className="ts-search-input"
           style={{
             flex: 1,
@@ -148,7 +129,12 @@ function SearchBar({ map }: SearchBarProps) {
           zIndex: 2000,
         }}>
           {filtered.map(loc => (
-            <DropdownItem key={loc.name} loc={loc} onSelect={handleSelect} />
+            <DropdownItem
+              key={`${loc.type}-${loc.name}-${loc.parentCity}`}
+              loc={loc}
+              query={query}
+              onSelect={handleSelect}
+            />
           ))}
         </div>
       )}
@@ -159,12 +145,35 @@ function SearchBar({ map }: SearchBarProps) {
 // ── Dropdown row ──────────────────────────────────────────────────────────────
 function DropdownItem({
   loc,
+  query,
   onSelect,
 }: {
-  loc: Location
-  onSelect: (loc: Location) => void
+  loc: PampangaLocation
+  query: string
+  onSelect: (loc: PampangaLocation) => void
 }) {
   const [hov, setHov] = useState(false)
+
+  // Bold-highlight matching portion of the name
+  const highlight = (text: string) => {
+    const idx = text.toLowerCase().indexOf(query.toLowerCase())
+    if (idx === -1) return <>{text}</>
+    return (
+      <>
+        {text.slice(0, idx)}
+        <strong style={{ color: '#1a1a1a', fontWeight: 700 }}>
+          {text.slice(idx, idx + query.length)}
+        </strong>
+        {text.slice(idx + query.length)}
+      </>
+    )
+  }
+
+  const subtitle = loc.type === 'Barangay'
+    ? `Barangay · ${loc.parentCity}`
+    : loc.parentCity === 'City of San Fernando'
+      ? 'Capital City · Pampanga'
+      : 'City · Pampanga'
 
   return (
     <button
@@ -188,21 +197,30 @@ function DropdownItem({
       <span style={{
         flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        width: '26px', height: '26px', borderRadius: '7px',
-        background: hov ? '#A2CB8B' : '#F0EDE0',
-        color: hov ? '#fff' : '#666',
+        width: '28px', height: '28px', borderRadius: '8px',
+        background: hov
+          ? (loc.type === 'City' ? '#92B57B' : '#A2CB8B')
+          : '#F0EDE0',
+        color: hov ? '#fff' : (loc.type === 'City' ? '#444' : '#666'),
         transition: 'background 150ms, color 150ms',
+        fontSize: '10px',
+        fontWeight: 800,
       }}>
-        <MapPin size={12} strokeWidth={2} />
+        {loc.type === 'City'
+          ? <MapPin size={13} strokeWidth={2} />
+          : <MapPin size={11} strokeWidth={2} />}
       </span>
 
       {/* Labels */}
-      <div>
-        <div style={{ fontSize: '13px', fontWeight: 500, color: '#333', lineHeight: 1.3 }}>
-          {loc.name}
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          fontSize: '13px', fontWeight: 500, color: '#444',
+          lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {highlight(loc.name)}
         </div>
-        <div style={{ fontSize: '11px', color: '#999', marginTop: '1px' }}>
-          {loc.type} · Pampanga
+        <div style={{ fontSize: '11px', color: '#BBB', marginTop: '1px' }}>
+          {subtitle}
         </div>
       </div>
     </button>

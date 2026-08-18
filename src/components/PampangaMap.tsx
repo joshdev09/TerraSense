@@ -1,191 +1,319 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Rectangle, useMap } from 'react-leaflet'
+import { useState, useCallback } from 'react'
+import { MapContainer, TileLayer, WMSTileLayer, GeoJSON, useMap } from 'react-leaflet'
+import { Plus, Minus } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import SearchBar from './SearchBar'
-import LayerController from './LayerController'
-import type { LayerState } from './LayerController'
+import LayerController, { type BasemapType } from './LayerController'
+import { detectUrban } from '../lib/detectUrban'
 
-// ── Map constants ─────────────────────────────────────────────────────────────
-const PAMPANGA_CENTER: [number, number] = [15.0794, 120.6200]
-const PAMPANGA_BOUNDS: [[number, number], [number, number]] = [
-  [14.70, 120.30],
-  [15.40, 121.05],
-]
+// Disable default icon paths for leaflet, as they sometimes break in Vite
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
 
-// ── Mock overlay patches (stub – swap with real GeoJSON when data is ready) ──
-const URBAN_PATCHES: [[number, number], [number, number]][] = [
-  [[15.13, 120.56], [15.22, 120.64]],  // Mabalacat–Angeles north
-  [[15.08, 120.57], [15.14, 120.64]],  // Angeles south
-  [[15.01, 120.67], [15.09, 120.75]],  // San Fernando
-  [[15.15, 120.47], [15.24, 120.56]],  // Porac–Angeles west
-]
+// ── Fallback stubs ────────────────────────────────────────────────────────────
 
-const AGRI_PATCHES: [[number, number], [number, number]][] = [
-  [[14.99, 120.73], [15.17, 120.88]],  // Candaba–Mexico corridor
-  [[14.83, 120.68], [14.97, 120.82]],  // Macabebe–Masantol lowlands
-  [[15.17, 120.68], [15.30, 120.85]],  // Arayat–Magalang farmland
-]
-
-const FLOOD_PATCHES: [[number, number], [number, number]][] = [
-  [[14.84, 120.63], [15.03, 120.80]],  // Guagua–Bacolor–Masantol basin
-  [[15.03, 120.75], [15.17, 120.92]],  // Mexico–San Luis–Candaba delta
-]
-
-const SUBSIDENCE_PATCHES: [[number, number], [number, number]][] = [
-  [[14.90, 120.58], [15.22, 120.83]],  // Central alluvial plain
-]
-
-// ── Bridge: captures the Leaflet map instance from inside MapContainer ────────
-function MapCapture({ onMapReady }: { onMapReady: (m: L.Map) => void }) {
-  const map = useMap()
-  const captured = useRef(false)
-  useEffect(() => {
-    if (captured.current) return
-    captured.current = true
-    onMapReady(map)
-  }, [map, onMapReady])
-  return null
+const URBAN_STUB: GeoJSON.FeatureCollection = {
+  type: 'FeatureCollection',
+  features: []
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-export default function PampangaMap() {
-  const [map, setMap] = useState<L.Map | null>(null)
+const AGRI_STUB: GeoJSON.FeatureCollection = {
+  type: 'FeatureCollection',
+  features: [
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.65, 15.00], [120.70, 15.00], [120.70, 15.05], [120.65, 15.05], [120.65, 15.00]]] }, properties: { label: 'San Fernando cropland', year_cleared: 2024 } },
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.50, 15.10], [120.55, 15.10], [120.55, 15.15], [120.50, 15.15], [120.50, 15.10]]] }, properties: { label: 'Porac farmlands', year_cleared: 2026 } },
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.58, 15.18], [120.62, 15.18], [120.62, 15.22], [120.58, 15.22], [120.58, 15.18]]] }, properties: { label: 'Mabalacat fields', year_cleared: 2030 } },
+    // New Clark City farmlands
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[120.50, 15.30], [120.57, 15.30], [120.57, 15.38], [120.50, 15.38], [120.50, 15.30]]] }, properties: { label: 'Capas/Bamban fields', year_cleared: 2022 } },
+  ]
+}
 
+const PAMPANGA_CENTER: [number, number] = [15.0794, 120.6200]
+// Tighter bounds to restrict user from exploring outside Pampanga
+const PAMPANGA_BOUNDS: [[number, number], [number, number]] = [[14.75, 120.35], [15.35, 120.95]]
+
+// Custom Zoom Control to match UI theme
+function CustomZoomControl() {
+  const map = useMap()
+  return (
+    <div style={{
+      position: 'absolute', bottom: '24px', right: '14px', zIndex: 1000,
+      display: 'flex', flexDirection: 'column', gap: '8px',
+      pointerEvents: 'auto'
+    }}>
+      <button
+        onClick={(e) => { e.preventDefault(); map.zoomIn() }}
+        style={{
+          width: '36px', height: '36px', borderRadius: '12px', background: '#fff', border: '1px solid #E8E6DA',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)', color: '#666', transition: 'all 200ms'
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F6F4E8' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff' }}
+      >
+        <Plus size={18} strokeWidth={2.5} />
+      </button>
+      <button
+        onClick={(e) => { e.preventDefault(); map.zoomOut() }}
+        style={{
+          width: '36px', height: '36px', borderRadius: '12px', background: '#fff', border: '1px solid #E8E6DA',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)', color: '#666', transition: 'all 200ms'
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#F6F4E8' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff' }}
+      >
+        <Minus size={18} strokeWidth={2.5} />
+      </button>
+    </div>
+  )
+}
+
+export interface LayerState {
+  urbanExpansion: boolean
+  agriculture:    boolean
+  floodDepth:     boolean
+  subsidence:     boolean
+}
+
+export default function PampangaMap() {
+  const [mapRef, setMapRef] = useState<L.Map | null>(null)
+  
   const [layers, setLayers] = useState<LayerState>({
     urbanExpansion: false,
     agriculture:    false,
     floodDepth:     false,
     subsidence:     false,
   })
-  const [timelineYear, setTimelineYear] = useState(2026)
+
+  const [basemap, setBasemap] = useState<BasemapType>('standard')
+  const [fromYear, setFromYear] = useState(2018)
+  const [toYear,   setToYear]   = useState(2026)
+
+  const [detecting,    setDetecting]    = useState(false)
+  const [detectError,  setDetectError]  = useState<string | null>(null)
+  const [urbanGeoJSON, setUrbanGeoJSON] = useState<GeoJSON.FeatureCollection>(URBAN_STUB)
 
   const handleToggle = useCallback((key: keyof LayerState) => {
     setLayers(prev => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
-  // Scale urban opacity with timeline year (more built-up toward 2026)
-  const urbanFillOpacity = 0.10 + 0.28 * ((timelineYear - 2018) / 8)
+  const handleTimelineChange = useCallback(({ from, to }: { from: number; to: number }) => {
+    setFromYear(from)
+    setToYear(to < from ? from : to)
+  }, [])
+
+  const handleBasemapChange = useCallback((type: BasemapType) => {
+    setBasemap(type)
+  }, [])
+
+  const handleRunDetection = async () => {
+    setDetecting(true)
+    setDetectError(null)
+
+    let imageBase64 = ''
+    try {
+      // MapLibre uses .mapboxgl-canvas, but since we are using React-Leaflet, 
+      // we must use html2canvas to capture the Leaflet container instead.
+      const mapEl = document.querySelector('.leaflet-container') as HTMLElement
+      if (mapEl) {
+        // Dynamically import html2canvas to avoid SSR issues or slow initial loads
+        const html2canvas = (await import('html2canvas')).default
+        const canvas = await html2canvas(mapEl, { useCORS: true })
+        imageBase64 = canvas.toDataURL("image/jpeg")
+        try {
+          localStorage.setItem('terrasense_latest_capture', imageBase64)
+        } catch (e) {
+          console.warn("Could not save capture to localStorage", e)
+        }
+      } else {
+        console.error("Map canvas not found.")
+      }
+    } catch (e) {
+      console.warn("Could not capture map screenshot", e)
+    }
+
+    try {
+      const geojson = await detectUrban({ 
+        imageBase64 
+      })
+      setUrbanGeoJSON(geojson)
+      // Auto-enable the Urban Expansion layer
+      setLayers(prev => ({ ...prev, urbanExpansion: true }))
+    } catch (err) {
+      setDetectError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  // Pre-filter features
+  const filteredUrbanGeoJSON = {
+    ...urbanGeoJSON,
+    features: urbanGeoJSON.features.filter((f) => {
+      const year = f.properties?.year
+      return year ? year <= toYear : true
+    })
+  }
+
+  const filteredAgriGeoJSON = {
+    ...AGRI_STUB,
+    features: AGRI_STUB.features.filter((f) => {
+      const cleared = f.properties?.year_cleared
+      return cleared ? cleared > toYear : true
+    })
+  }
+
+  const urbanFillOpacity = 0.2 + 0.5 * ((toYear - 2018) / 8)
 
   return (
-    <div style={{
-      flexGrow: 1,
-      height: '100%',
-      width: '100%',
-      position: 'relative',
-      zIndex: 0,
-      isolation: 'isolate',
-    }}>
-      {/* ── Map ── */}
+    <div style={{ flexGrow: 1, height: '100%', width: '100%', position: 'relative', isolation: 'isolate' }}>
+
       <MapContainer
         center={PAMPANGA_CENTER}
         zoom={11}
         minZoom={10}
         maxZoom={18}
         maxBounds={PAMPANGA_BOUNDS}
-        maxBoundsViscosity={1.0}
-        scrollWheelZoom={true}
-        zoomControl={false}
+        maxBoundsViscosity={1.0} // Act as a hard wall
+        style={{ width: '100%', height: '100%' }}
+        zoomControl={false} // Disable standard leaflet zoom
+        ref={setMapRef}
         attributionControl={false}
-        style={{ height: '100%', width: '100%' }}
       >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
+        {/* Basemap logic */}
+        {basemap === 'satellite' ? (
+          <TileLayer
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            attribution="&copy; Esri, Maxar, Earthstar Geographics"
+            maxZoom={18}
+          />
+        ) : (
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+            maxZoom={19}
+          />
+        )}
 
-        {/* Capture map instance */}
-        <MapCapture onMapReady={setMap} />
-
-        {/* ── Urban Expansion overlay ── */}
-        {layers.urbanExpansion && URBAN_PATCHES.map((bounds, i) => (
-          <Rectangle
-            key={`urban-${i}`}
-            bounds={bounds}
-            pathOptions={{
-              color:       '#D97706',
-              fillColor:   '#D97706',
+        {/* Dynamic Vector Layers */}
+        {layers.urbanExpansion && (
+          <GeoJSON 
+            key={`urban-${toYear}-${filteredUrbanGeoJSON.features.length}`}
+            data={filteredUrbanGeoJSON}
+            style={{
+              fillColor: '#D97706',
               fillOpacity: urbanFillOpacity,
-              weight:      1.2,
-              opacity:     0.45,
+              color: '#D97706',
+              weight: 2,
+              opacity: 0.8
             }}
           />
-        ))}
+        )}
 
-        {/* ── Remaining Agriculture overlay ── */}
-        {layers.agriculture && AGRI_PATCHES.map((bounds, i) => (
-          <Rectangle
-            key={`agri-${i}`}
-            bounds={bounds}
-            pathOptions={{
-              color:       '#A2CB8B',
-              fillColor:   '#A2CB8B',
-              fillOpacity: 0.28,
-              weight:      1.2,
-              opacity:     0.45,
+        {layers.agriculture && (
+          <GeoJSON 
+            key={`agri-${toYear}-${filteredAgriGeoJSON.features.length}`}
+            data={filteredAgriGeoJSON}
+            style={{
+              fillColor: '#A2CB8B',
+              fillOpacity: 0.30,
+              color: '#5A8E4C',
+              weight: 1.5,
+              opacity: 0.7
             }}
           />
-        ))}
+        )}
 
-        {/* ── Flood Depth overlay ── */}
-        {layers.floodDepth && FLOOD_PATCHES.map((bounds, i) => (
-          <Rectangle
-            key={`flood-${i}`}
-            bounds={bounds}
-            pathOptions={{
-              color:       '#3B82F6',
-              fillColor:   '#3B82F6',
-              fillOpacity: 0.25,
-              weight:      1.5,
-              opacity:     0.50,
-            }}
+        {/* Flood Depth */}
+        {layers.floodDepth && (
+          <TileLayer
+            url="https://lipad-drrm.s3.amazonaws.com/fhm/tiles/fhm_100yr/{z}/{x}/{y}.png"
+            opacity={0.55}
           />
-        ))}
+        )}
 
-        {/* ── Subsidence overlay ── */}
-        {layers.subsidence && SUBSIDENCE_PATCHES.map((bounds, i) => (
-          <Rectangle
-            key={`sub-${i}`}
-            bounds={bounds}
-            pathOptions={{
-              color:       '#F59E0B',
-              fillColor:   '#F59E0B',
-              fillOpacity: 0.18,
-              weight:      1,
-              opacity:     0.40,
-            }}
+        {/* Subsidence (WMS) */}
+        {layers.subsidence && (
+          <WMSTileLayer
+            url="https://emergency.copernicus.eu/mapping/wms"
+            layers="emsn091_01PAMPANGA_DELINEATION_MONIT01"
+            format="image/png"
+            transparent={true}
+            opacity={0.50}
           />
-        ))}
+        )}
+        
+        <CustomZoomControl />
       </MapContainer>
 
-      {/* ── Floating UI (top-right, above the map canvas) ── */}
+      {/* Floating UI overlay */}
       <div style={{
-        position: 'absolute',
-        top: '14px',
-        right: '14px',
+        position: 'absolute', top: '14px', right: '14px',
         zIndex: 1000,
-        display: 'flex',
-        flexDirection: 'row',
-        gap: '10px',
-        alignItems: 'flex-start',
-        pointerEvents: 'none',   // let clicks fall through to the map by default
+        display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start',
+        pointerEvents: 'none',
       }}>
-        {/* Search bar sits to the left of the layer panel */}
         <div style={{ pointerEvents: 'auto' }}>
-          <SearchBar map={map} />
+          <SearchBar map={mapRef} />
         </div>
-
-        {/* Layer controller on the right edge */}
-        <div style={{ pointerEvents: 'auto' }}>
+        <div style={{ pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
           <LayerController
-            map={map}
+            map={mapRef}
             layers={layers}
+            basemap={basemap}
             onToggle={handleToggle}
-            timelineYear={timelineYear}
-            onTimelineChange={setTimelineYear}
+            onBasemapChange={handleBasemapChange}
+            fromYear={fromYear}
+            toYear={toYear}
+            onTimelineChange={handleTimelineChange}
           />
+          
+          <button
+            onClick={handleRunDetection}
+            disabled={detecting}
+            title="Run NVIDIA LocateAnything-3B urban expansion detection on latest Diwata-2 imagery"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+              padding: '9px 14px', borderRadius: '12px',
+              background: detecting ? '#E8E6DA' : '#1a1a1a',
+              border: 'none', cursor: detecting ? 'not-allowed' : 'pointer',
+              fontSize: '12px', fontWeight: 700, color: detecting ? '#999' : '#fff',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+              transition: 'background 200ms',
+              letterSpacing: '0.02em',
+              width: '100%',
+            }}
+            onMouseEnter={e => { if (!detecting) (e.currentTarget as HTMLButtonElement).style.background = '#D97706' }}
+            onMouseLeave={e => { if (!detecting) (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a' }}
+          >
+            {detecting ? (
+              <>
+                <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid #999', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+                Detecting...
+              </>
+            ) : (
+              'Run AI Detection'
+            )}
+          </button>
+
+          {detectError && (
+            <div style={{
+              background: '#FEF2F2', border: '1px solid #FECACA',
+              borderRadius: '10px', padding: '9px 12px',
+              fontSize: '11.5px', color: '#DC2626', width: '100%', lineHeight: 1.5,
+            }}>
+              {detectError}
+            </div>
+          )}
         </div>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

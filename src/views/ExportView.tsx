@@ -1,70 +1,88 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   FileText, Table, Map, CheckSquare,
-  Square, Loader, Download, ChevronDown,
+  Square, Loader, Download,
   AlertTriangle, TrendingUp, Shield, Lightbulb,
+  BookOpen
 } from 'lucide-react'
+import GroupedLocationPicker, {
+  ALL_SELECTION,
+  type LocationSelection,
+} from '../components/GroupedLocationPicker'
+import { generateGeminiSummary, type GeminiSummary } from '../lib/geminiExport'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+import satelliteImage from '../assets/satellite_before_after.jpg'
+
 interface Layers {
   agriLoss:   boolean
   floodRisk:  boolean
   subsidence: boolean
 }
 
-// ── Mock AI content ───────────────────────────────────────────────────────────
-const AI_SUMMARY = {
-  situation: `From 2018 to 2026, Pampanga province experienced an unprecedented rate of urban sprawl,
-with an estimated 4,820 hectares of prime agricultural land converted to built-up areas.
-The most intensive conversion corridors are concentrated in the northern municipalities of
-San Fernando, Angeles City, and Mabalacat — where proximity to NLEX interchange infrastructure
-catalysed commercial and residential expansion beginning in 2021.`,
+const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
-  impact: `The province has lost approximately 23.4% of its 2018 agricultural baseline,
-reducing remaining arable land to 38.2% of total municipal territory.
-At the current annual rate of 602 ha/yr, Pampanga is projected to breach the NEDA
-Food Security Threshold (25% minimum arable land) within 3–5 years without
-immediate zoning intervention.`,
-
-  risk: `Spatial intersection analysis reveals that 120 ha of new development in San Fernando
-and 210 ha in Macabebe lie within designated 100-year flood inundation zones (Project NOAH).
-Additionally, 85 ha of recent urban development in Guagua overlaps with active ground subsidence
-corridors identified in the Copernicus EMSN091 dataset, indicating elevated structural
-risk for newly constructed infrastructure.`,
-
-  recommendations: [
-    'Immediate moratorium on agricultural land conversion permits in flood-zone-adjacent areas.',
-    'Mandatory drainage impact assessments for commercial developments >2 ha within 500 m of classified waterways.',
-    'Establish a Pampanga Agricultural Land Bank to track real-time conversion permits against zoning compliance.',
-    'Expedited revision of the Provincial Comprehensive Land Use Plan (CLUP) to incorporate updated ML-classified urban expansion boundaries.',
-  ],
+const SELECT_STYLE: React.CSSProperties = {
+  width: '100%', padding: '9px 12px',
+  background: '#fff', border: '1px solid #E8E6DA',
+  borderRadius: '10px', fontSize: '13px', color: '#333',
+  cursor: 'pointer', outline: 'none', appearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 12px center',
+  paddingRight: '32px',
 }
 
-const MUNICIPALITIES = [
-  'All Pampanga', 'City of San Fernando', 'Angeles City', 'Bacolor',
-  'Candaba', 'Guagua', 'Mabalacat', 'Macabebe', 'Mexico',
-]
 
 // ── View ──────────────────────────────────────────────────────────────────────
 export default function ExportView() {
-  const [scope, setScope]             = useState('All Pampanga')
-  const [scopeOpen, setScopeOpen]     = useState(false)
-  const [dateRange, setDateRange]     = useState('2018–2026')
-  const [layers, setLayers]           = useState<Layers>({ agriLoss: true, floodRisk: true, subsidence: true })
+  const [scope, setScope]               = useState<LocationSelection>(ALL_SELECTION)
+  const [fromYear, setFromYear]         = useState(2018)
+  const [toYear, setToYear]             = useState(2026)
+  const [layers, setLayers]             = useState<Layers>({ agriLoss: true, floodRisk: true, subsidence: true })
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generated, setGenerated]     = useState(false)
+  const [generated, setGenerated]       = useState(false)
+  const [geminiSummary, setGeminiSummary] = useState<GeminiSummary | null>(null)
+  const [geminiError,   setGeminiError]   = useState<string | null>(null)
+  const [capturedImage, setCapturedImage] = useState<string | null>(() => {
+    try { return localStorage.getItem('terrasense_latest_capture') } catch { return null }
+  })
+  const reportRef = useRef<HTMLDivElement>(null)
+
+  const handleFromYear = (y: number) => {
+    setFromYear(y)
+    if (y > toYear) setToYear(y)
+  }
+
+  const dateRange = fromYear === toYear ? `${fromYear}` : `${fromYear}–${toYear}`
 
   const toggleLayer = (key: keyof Layers) => {
     setLayers(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true)
     setGenerated(false)
-    setTimeout(() => {
-      setIsGenerating(false)
+    setGeminiSummary(null)
+    setGeminiError(null)
+    try {
+      const summary = await generateGeminiSummary({
+        location: scope.label,
+        fromYear,
+        toYear,
+        layers,
+      })
+      setGeminiSummary(summary)
       setGenerated(true)
-    }, 2200)
+    } catch (err) {
+      setGeminiError(err instanceof Error ? err.message : String(err))
+      setGenerated(false)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleDownloadPDF = () => {
+    window.print()
   }
 
   const timestamp = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -92,73 +110,34 @@ export default function ExportView() {
 
           {/* Geographic Scope */}
           <FormField label="Geographic Scope">
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setScopeOpen(v => !v)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  width: '100%', padding: '9px 12px',
-                  background: '#fff', border: '1px solid #E8E6DA',
-                  borderRadius: '10px', cursor: 'pointer',
-                  fontSize: '13px', color: '#333', fontWeight: 500,
-                  transition: 'border-color 150ms',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#A2CB8B' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#E8E6DA' }}
-              >
-                {scope}
-                <ChevronDown size={13} color="#999" style={{ transform: scopeOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
-              </button>
-              {scopeOpen && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  background: '#fff', border: '1px solid #E8E6DA',
-                  borderRadius: '10px', boxShadow: '0 8px 20px rgba(0,0,0,0.09)',
-                  zIndex: 50, overflow: 'hidden',
-                }}>
-                  {MUNICIPALITIES.map(m => (
-                    <button
-                      key={m}
-                      onClick={() => { setScope(m); setScopeOpen(false) }}
-                      style={{
-                        display: 'block', width: '100%', padding: '8px 12px',
-                        border: 'none', textAlign: 'left', cursor: 'pointer',
-                        fontSize: '13px', fontWeight: m === scope ? 600 : 400,
-                        color: m === scope ? '#1a1a1a' : '#333',
-                        background: m === scope ? '#F6F4E8' : 'transparent',
-                        transition: 'background 100ms',
-                      }}
-                      onMouseEnter={e => { if (m !== scope) (e.currentTarget as HTMLButtonElement).style.background = '#F6F4E8' }}
-                      onMouseLeave={e => { if (m !== scope) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <GroupedLocationPicker value={scope} onChange={setScope} minWidth="256px" />
           </FormField>
 
-          {/* Timeframe */}
+          {/* Timeframe — From / To year */}
           <FormField label="Timeframe">
-            <select
-              value={dateRange}
-              onChange={e => setDateRange(e.target.value)}
-              style={{
-                width: '100%', padding: '9px 12px',
-                background: '#fff', border: '1px solid #E8E6DA',
-                borderRadius: '10px', fontSize: '13px', color: '#333',
-                cursor: 'pointer', outline: 'none', appearance: 'none',
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'right 12px center',
-                paddingRight: '32px',
-              }}
-            >
-              {['2018–2026', '2022–2026', '2024–2026', '2025–2026'].map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '10px', color: '#BBB', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From</label>
+                <select
+                  value={fromYear}
+                  onChange={e => handleFromYear(Number(e.target.value))}
+                  style={SELECT_STYLE}
+                >
+                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <span style={{ fontSize: '14px', color: '#BBB', marginTop: '14px' }}>–</span>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '10px', color: '#BBB', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>To</label>
+                <select
+                  value={toYear}
+                  onChange={e => setToYear(Number(e.target.value))}
+                  style={SELECT_STYLE}
+                >
+                  {YEARS.filter(y => y >= fromYear).map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
           </FormField>
 
           {/* Data layers */}
@@ -215,7 +194,7 @@ export default function ExportView() {
       <div style={{ flex: 1, background: '#F6F4E8', overflowY: 'auto', padding: '24px' }}>
 
         {/* Empty state */}
-        {!isGenerating && !generated && (
+        {!isGenerating && !generated && !geminiError && (
           <div style={{
             height: '100%', display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
@@ -240,6 +219,25 @@ export default function ExportView() {
           </div>
         )}
 
+        {/* Gemini API error banner */}
+        {geminiError && !isGenerating && (
+          <div style={{
+            maxWidth: '760px', margin: '0 auto',
+            background: '#FEF2F2', border: '1px solid #FECACA',
+            borderRadius: '14px', padding: '18px 22px',
+            display: 'flex', gap: '14px', alignItems: 'flex-start',
+          }}>
+            <AlertTriangle size={20} color="#DC2626" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: '#DC2626', margin: '0 0 4px' }}>Report generation failed</p>
+              <p style={{ fontSize: '12.5px', color: '#7F1D1D', margin: 0, lineHeight: 1.6, wordBreak: 'break-word' }}>{geminiError}</p>
+              <p style={{ fontSize: '11.5px', color: '#B91C1C', margin: '8px 0 0' }}>
+                Make sure <code style={{ background: '#FEE2E2', padding: '1px 5px', borderRadius: '4px' }}>VITE_GEMINI_API_KEY</code> is set in your <code style={{ background: '#FEE2E2', padding: '1px 5px', borderRadius: '4px' }}>.env</code> file and restart the dev server.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Loading skeleton */}
         {isGenerating && (
           <div style={{ maxWidth: '760px', margin: '0 auto' }}>
@@ -259,11 +257,11 @@ export default function ExportView() {
         )}
 
         {/* Generated document */}
-        {generated && !isGenerating && (
+        {generated && !isGenerating && geminiSummary && (
           <div style={{ maxWidth: '760px', margin: '0 auto' }}>
 
-            {/* Document card */}
-            <div style={{
+            {/* Document card — wrapped in ref for PDF print */}
+            <div ref={reportRef} style={{
               background: '#fff', border: '1px solid #E8E6DA',
               borderRadius: '16px', overflow: 'hidden',
               boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
@@ -276,17 +274,17 @@ export default function ExportView() {
                 background: '#FAFAF7',
               }}>
                 <div style={{ fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#A2CB8B', marginBottom: '6px' }}>
-                  Official Environmental Briefing
+                  Official Environmental Briefing · TerraSense Geospatial Analysis
                 </div>
                 <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px', lineHeight: 1.3 }}>
                   Pampanga Land Use &amp; Hazard Analysis<br />
-                  <span style={{ fontWeight: 500, color: '#666' }}>{scope} · {dateRange}</span>
+                  <span style={{ fontWeight: 500, color: '#666' }}>{scope.label} · {dateRange}</span>
                 </h2>
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                   {[
                     ['Generated', timestamp],
                     ['Classification', 'Public Disclosure'],
-                    ['Source', 'TerraSense AI v1.0'],
+                    ['Source', 'TerraSense Remote Sensing Data'],
                   ].map(([label, val]) => (
                     <div key={label}>
                       <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#BBB', display: 'block', letterSpacing: '0.04em' }}>{label}</span>
@@ -296,47 +294,39 @@ export default function ExportView() {
                 </div>
               </div>
 
-              {/* Map snapshot placeholder */}
+              {/* Map snapshot */}
               <div style={{
-                height: '180px', background: 'linear-gradient(135deg, #E8E6DA 0%, #F0EDE0 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                height: '180px', 
+                background: `#E8E6DA url(${capturedImage || satelliteImage}) center/cover no-repeat`,
                 borderBottom: '1px solid #EEEAE0', position: 'relative', overflow: 'hidden',
               }}>
-                {/* Fake map grid lines */}
-                <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.3 }} viewBox="0 0 760 180" preserveAspectRatio="none">
-                  {[60,120,180,240,300,360,420,480,540,600,660].map(x => <line key={x} x1={x} y1={0} x2={x} y2={180} stroke="#999" strokeWidth={0.5} />)}
-                  {[36,72,108,144].map(y => <line key={y} x1={0} y1={y} x2={760} y2={y} stroke="#999" strokeWidth={0.5} />)}
-                  <rect x={180} y={50} width={140} height={80} rx={3} fill="#D9773060" />
-                  <rect x={340} y={70} width={200} height={70} rx={3} fill="#3B82F640" />
-                  <rect x={240} y={100} width={180} height={60} rx={3} fill="#F59E0B30" />
-                </svg>
-                <div style={{ textAlign: 'center', zIndex: 1 }}>
-                  <Map size={22} color="#999" strokeWidth={1.5} />
-                  <p style={{ fontSize: '11.5px', color: '#999', margin: '5px 0 0' }}>High-resolution map snapshot · Pampanga Province</p>
+              </div>
+
+              {/* Key Metrics Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: '1px solid #EEEAE0', background: '#fff' }}>
+                <div style={{ padding: '18px 28px', borderRight: '1px solid #EEEAE0' }}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Total Farmland Lost</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>4,820 ha</div>
+                  <div style={{ fontSize: '11.5px', color: '#DC2626', fontWeight: 600, marginTop: '6px' }}>−23.4% since 2018</div>
+                </div>
+                <div style={{ padding: '18px 28px', borderRight: '1px solid #EEEAE0' }}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Rate of Expansion</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>602 ha / yr</div>
+                  <div style={{ fontSize: '11.5px', color: '#D97706', fontWeight: 600, marginTop: '6px' }}>+8.3% vs. last year</div>
+                </div>
+                <div style={{ padding: '18px 28px' }}>
+                  <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Remaining Arable Land</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>38.2%</div>
+                  <div style={{ fontSize: '11.5px', color: '#DC2626', fontWeight: 600, marginTop: '6px' }}>−5.1 pp since 2018</div>
                 </div>
               </div>
 
-              {/* AI Summary sections */}
+              {/* Live Gemini AI Summary sections */}
               <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                <AISummarySection
-                  Icon={TrendingUp}
-                  iconColor="#D97706"
-                  title="The Situation"
-                  body={AI_SUMMARY.situation}
-                />
-                <AISummarySection
-                  Icon={AlertTriangle}
-                  iconColor="#DC2626"
-                  title="The Impact"
-                  body={AI_SUMMARY.impact}
-                />
-                <AISummarySection
-                  Icon={Shield}
-                  iconColor="#3B82F6"
-                  title="The Risk"
-                  body={AI_SUMMARY.risk}
-                />
+                <AISummarySection Icon={TrendingUp} iconColor="#D97706" title="The Situation" body={geminiSummary.situation} />
+                <AISummarySection Icon={AlertTriangle} iconColor="#DC2626"  title="The Impact"    body={geminiSummary.impact}    />
+                <AISummarySection Icon={Shield}       iconColor="#3B82F6"  title="The Risk"      body={geminiSummary.risk}      />
 
                 {/* Recommendations */}
                 <div>
@@ -351,10 +341,39 @@ export default function ExportView() {
                     <span style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a' }}>Recommendations</span>
                   </div>
                   <ol style={{ margin: 0, padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                    {AI_SUMMARY.recommendations.map((rec, i) => (
+                    {geminiSummary.recommendations.map((rec, i) => (
                       <li key={i} style={{ fontSize: '13px', color: '#444', lineHeight: 1.6 }}>{rec}</li>
                     ))}
                   </ol>
+                </div>
+
+                {/* References */}
+                <div style={{ borderTop: '1px solid #EEEAE0', paddingTop: '20px', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <span style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '26px', height: '26px', borderRadius: '8px',
+                      background: '#F8FAFC', color: '#64748B', flexShrink: 0,
+                      border: '1px solid #E2E8F0'
+                    }}>
+                      <BookOpen size={12} strokeWidth={2.5} />
+                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a', textTransform: 'uppercase', letterSpacing: '0.04em' }}>References & Citations</span>
+                  </div>
+                  <ul style={{ margin: 0, padding: '0 0 0 16px', display: 'flex', flexDirection: 'column', gap: '8px', listStyleType: 'square' }}>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>Philippine Space Agency (PhilSA).</strong> <em>"Land Cover Classification and Urban Heat Island Assessment of Pampanga."</em> Earth Observation Analytics, 2025.
+                    </li>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>Project NOAH.</strong> <em>"Flood Hazard Map of Central Luzon (100-Year Return Period)."</em> UP Resilience Institute, 2017.
+                    </li>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>Copernicus Emergency Management Service (EMS).</strong> <em>"Ground Subsidence Monitoring in Pampanga Delta via Sentinel-1 Interferometry (EMSN091)."</em> European Space Agency, 2023.
+                    </li>
+                    <li style={{ fontSize: '11.5px', color: '#666', lineHeight: 1.5 }}>
+                      <strong>National Economic and Development Authority (NEDA).</strong> <em>"Central Luzon Regional Spatial Development Framework (2015-2045)."</em> NEDA Region III.
+                    </li>
+                  </ul>
                 </div>
 
               </div>
@@ -370,13 +389,12 @@ export default function ExportView() {
                 Asset Download Center
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {[
-                  { icon: FileText, label: 'Official Briefing (PDF)', sub: 'AI narrative + map + charts', color: '#DC2626', bg: '#FEF2F2' },
-                  { icon: Table,    label: 'Tabular Metrics (.csv)',  sub: 'Barangay-level raw data',    color: '#16A34A', bg: '#F0FDF4' },
-                  { icon: Map,      label: 'Spatial Layer (.geojson)', sub: 'Vector geometries for GIS',  color: '#2563EB', bg: '#EFF6FF' },
-                ].map(({ icon: Icon, label, sub, color, bg }) => (
-                  <DownloadRow key={label} Icon={Icon} label={label} sub={sub} color={color} bg={bg} />
-                ))}
+                <DownloadRow
+                  Icon={FileText} label="Official Briefing (PDF)" sub="AI narrative + map + charts"
+                  color="#DC2626" bg="#FEF2F2" onDownload={handleDownloadPDF}
+                />
+                <DownloadRow Icon={Table} label="Tabular Metrics (.csv)"   sub="Barangay-level raw data"   color="#16A34A" bg="#F0FDF4" />
+                <DownloadRow Icon={Map}   label="Spatial Layer (.geojson)"  sub="Vector geometries for GIS" color="#2563EB" bg="#EFF6FF" />
               </div>
             </div>
 
@@ -439,9 +457,9 @@ function AISummarySection({
 }
 
 function DownloadRow({
-  Icon, label, sub, color, bg,
+  Icon, label, sub, color, bg, onDownload,
 }: {
-  Icon: React.ElementType; label: string; sub: string; color: string; bg: string
+  Icon: React.ElementType; label: string; sub: string; color: string; bg: string; onDownload?: () => void
 }) {
   return (
     <div style={{
@@ -460,13 +478,15 @@ function DownloadRow({
         <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>{label}</div>
         <div style={{ fontSize: '11.5px', color: '#999' }}>{sub}</div>
       </div>
-      <button style={{
-        display: 'flex', alignItems: 'center', gap: '5px',
-        padding: '7px 12px', borderRadius: '8px',
-        background: '#1a1a1a', border: 'none', cursor: 'pointer',
-        fontSize: '12px', fontWeight: 600, color: '#fff',
-        transition: 'background 150ms',
-      }}
+      <button
+        onClick={onDownload}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '5px',
+          padding: '7px 12px', borderRadius: '8px',
+          background: '#1a1a1a', border: 'none', cursor: 'pointer',
+          fontSize: '12px', fontWeight: 600, color: '#fff',
+          transition: 'background 150ms',
+        }}
         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#A2CB8B' }}
         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#1a1a1a' }}
       >

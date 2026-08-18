@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import {
   TrendingDown, Activity, Leaf,
-  AlertTriangle, ChevronDown, MapPin,
-  ArrowDown, ArrowUp,
+  AlertTriangle, ArrowDown, ArrowUp,
 } from 'lucide-react'
+import GroupedLocationPicker, {
+  ALL_SELECTION,
+  type LocationSelection,
+} from '../components/GroupedLocationPicker'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface WatchlistRow {
@@ -24,20 +27,22 @@ interface RiskProfile {
 }
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
-const MUNICIPALITIES = [
-  'All Pampanga', 'Angeles City', 'City of San Fernando', 'Apalit', 'Arayat',
-  'Bacolor', 'Candaba', 'Floridablanca', 'Guagua', 'Lubao', 'Mabalacat',
-  'Macabebe', 'Mexico', 'Porac', 'San Luis', 'Santa Ana',
-]
-
 const WATCHLIST: WatchlistRow[] = [
-  { barangay: 'Dolores',       municipality: 'Bacolor',            hectares: 680, type: 'Commercial Sprawl',      risk: 'high'   },
-  { barangay: 'San Nicolas',   municipality: 'Mexico',             hectares: 540, type: 'Residential Expansion',  risk: 'medium' },
-  { barangay: 'Del Pilar',     municipality: 'City of San Fernando', hectares: 490, type: 'Industrial Zone',     risk: 'high'   },
-  { barangay: 'Atlu-Bola',     municipality: 'Mabalacat',          hectares: 420, type: 'Mixed Use Development',  risk: 'medium' },
-  { barangay: 'Balibago',      municipality: 'Angeles City',       hectares: 380, type: 'Commercial',            risk: 'low'    },
-  { barangay: 'Sindalan',      municipality: 'City of San Fernando', hectares: 310, type: 'Residential',         risk: 'medium' },
-  { barangay: 'Manibaug Libutad', municipality: 'Porac',           hectares: 275, type: 'Residential Subdivision', risk: 'low' },
+  // City of San Fernando
+  { barangay: 'Dolores',        municipality: 'City of San Fernando', hectares: 680, type: 'Commercial Sprawl',       risk: 'high'   },
+  { barangay: 'Del Pilar',      municipality: 'City of San Fernando', hectares: 545, type: 'Industrial Zone',         risk: 'high'   },
+  { barangay: 'Sindalan',       municipality: 'City of San Fernando', hectares: 390, type: 'Residential Expansion',   risk: 'medium' },
+  { barangay: 'Telabastagan',   municipality: 'City of San Fernando', hectares: 360, type: 'Mixed Use Development',   risk: 'medium' },
+  { barangay: 'Quebiawan',      municipality: 'City of San Fernando', hectares: 275, type: 'Residential Subdivision', risk: 'low'    },
+  // Angeles City
+  { barangay: 'Balibago',       municipality: 'Angeles City',         hectares: 480, type: 'Commercial Sprawl',       risk: 'high'   },
+  { barangay: 'Anunas',         municipality: 'Angeles City',         hectares: 310, type: 'Commercial / Mixed Use',  risk: 'medium' },
+  { barangay: 'Pulung Cacutud', municipality: 'Angeles City',         hectares: 230, type: 'Residential Expansion',   risk: 'low'    },
+  // Mabalacat City
+  { barangay: 'Dau',            municipality: 'Mabalacat City',       hectares: 420, type: 'Commercial / Industrial', risk: 'high'   },
+  { barangay: 'Atlu-Bola',      municipality: 'Mabalacat City',       hectares: 295, type: 'Mixed Use Development',   risk: 'medium' },
+  { barangay: 'Bundagul',       municipality: 'Mabalacat City',       hectares: 215, type: 'Residential Subdivision', risk: 'low'    },
+  { barangay: 'Mawaque',        municipality: 'Mabalacat City',       hectares: 185, type: 'Residential',             risk: 'low'    },
 ]
 
 const TREND_DATA = [
@@ -52,23 +57,23 @@ const RISK_PROFILES: RiskProfile[] = [
     floodRisk:      'High',
     subsidenceRisk: 'Moderate',
     score:          'Critical',
-    exposure:       '120 ha of new development within the 100-year flood inundation zone',
+    exposure:       '120 ha of new development in Dolores & Del Pilar within the 100-year flood inundation zone',
     alert:          'Drainage and zoning audit recommended immediately',
   },
   {
-    municipality:   'Guagua',
+    municipality:   'Angeles City',
     floodRisk:      'Moderate',
-    subsidenceRisk: 'High',
+    subsidenceRisk: 'Low',
     score:          'Moderate',
-    exposure:       '85 ha exposed to active ground subsidence corridors (Copernicus EMSN091)',
-    alert:          'Ground stability assessment required before further permitting',
+    exposure:       '85 ha of commercial sprawl in Balibago & Anunas intersect with drainage overflow corridors',
+    alert:          'Stormwater impact assessment required for new commercial developments',
   },
   {
-    municipality:   'Macabebe',
+    municipality:   'Mabalacat City',
     floodRisk:      'High',
     subsidenceRisk: 'High',
     score:          'Critical',
-    exposure:       '210 ha combined flood + subsidence dual-hazard exposure',
+    exposure:       '210 ha in Dau & Atlu-Bola exposed to combined flood + subsidence dual-hazard zones',
     alert:          'Immediate zoning intervention advised — development moratorium proposed',
   },
 ]
@@ -84,12 +89,23 @@ const RISK_COLOR = {
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 export default function AnalyticsView() {
-  const [selectedMuni, setSelectedMuni] = useState('All Pampanga')
-  const [filterOpen, setFilterOpen]     = useState(false)
+  const [selection, setSelection] = useState<LocationSelection>(ALL_SELECTION)
 
-  const rows = selectedMuni === 'All Pampanga'
-    ? WATCHLIST
-    : WATCHLIST.filter(w => w.municipality === selectedMuni)
+  // Filter watchlist based on selection type
+  const rows: WatchlistRow[] = (() => {
+    if (selection.type === 'all')      return WATCHLIST
+    if (selection.type === 'city')     return WATCHLIST.filter(w => w.municipality === selection.city)
+    if (selection.type === 'barangay') {
+      const exact = WATCHLIST.filter(w => w.barangay === selection.barangay && w.municipality === selection.city)
+      // If the barangay has a watchlist entry, show it; otherwise show the parent city's rows
+      return exact.length > 0 ? exact : WATCHLIST.filter(w => w.municipality === selection.city)
+    }
+    return WATCHLIST
+  })()
+
+  const noExactBarangay =
+    selection.type === 'barangay' &&
+    !WATCHLIST.some(w => w.barangay === selection.barangay)
 
   return (
     <div style={{ flex: 1, background: '#F6F4E8', overflowY: 'auto', padding: '24px' }}>
@@ -109,55 +125,9 @@ export default function AnalyticsView() {
             </p>
           </div>
 
-          {/* Municipality filter dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setFilterOpen(v => !v)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 14px', background: '#fff',
-                border: '1px solid #E8E6DA', borderRadius: '10px',
-                cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: '#333',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'border-color 150ms',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#A2CB8B' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#E8E6DA' }}
-            >
-              <MapPin size={13} color="#A2CB8B" />
-              {selectedMuni}
-              <ChevronDown
-                size={13} color="#999"
-                style={{ transform: filterOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}
-              />
-            </button>
-
-            {filterOpen && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                background: '#fff', border: '1px solid #E8E6DA',
-                borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.09)',
-                zIndex: 100, overflow: 'hidden', minWidth: '210px',
-              }}>
-                {MUNICIPALITIES.map(m => (
-                  <button
-                    key={m}
-                    onClick={() => { setSelectedMuni(m); setFilterOpen(false) }}
-                    style={{
-                      display: 'block', width: '100%', padding: '9px 14px',
-                      border: 'none', textAlign: 'left', cursor: 'pointer',
-                      fontSize: '13px', fontWeight: m === selectedMuni ? 600 : 400,
-                      color: m === selectedMuni ? '#1a1a1a' : '#333',
-                      background: m === selectedMuni ? '#F6F4E8' : 'transparent',
-                      transition: 'background 100ms',
-                    }}
-                    onMouseEnter={e => { if (m !== selectedMuni) (e.currentTarget as HTMLButtonElement).style.background = '#F6F4E8' }}
-                    onMouseLeave={e => { if (m !== selectedMuni) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            )}
+          {/* Location filter */}
+          <div style={{ width: '240px' }}>
+            <GroupedLocationPicker value={selection} onChange={setSelection} />
           </div>
         </div>
 
@@ -193,7 +163,7 @@ export default function AnalyticsView() {
         </div>
 
         {/* ── Main grid: table + chart ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '14px', marginBottom: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '14px', marginBottom: '14px', alignItems: 'flex-start' }}>
 
           {/* Watchlist table */}
           <div style={{
@@ -201,11 +171,35 @@ export default function AnalyticsView() {
             borderRadius: '16px', overflow: 'hidden',
             boxShadow: '0 1px 6px rgba(0,0,0,0.04)',
           }}>
-            <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #EEEAE0' }}>
+            <div style={{
+              padding: '14px 20px 12px', borderBottom: '1px solid #EEEAE0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
               <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#999' }}>
                 Barangay Watchlist
               </span>
+              {selection.type !== 'all' && (
+                <span style={{
+                  fontSize: '11px', color: '#A2CB8B', fontWeight: 600,
+                  background: '#F0FDF4', border: '1px solid #BBF7D0',
+                  padding: '2px 8px', borderRadius: '5px',
+                }}>
+                  {selection.label}
+                </span>
+              )}
             </div>
+
+            {/* Info banner when showing parent city due to no barangay row */}
+            {noExactBarangay && (
+              <div style={{
+                padding: '9px 20px', background: '#FFFBEB',
+                borderBottom: '1px solid #FDE68A',
+                fontSize: '12px', color: '#D97706',
+              }}>
+                No direct watchlist entry for <strong>{selection.barangay}</strong> — showing all {selection.city} data.
+              </div>
+            )}
+
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#FAFAF7' }}>
@@ -222,7 +216,7 @@ export default function AnalyticsView() {
                 </tr>
               </thead>
               <tbody>
-                {(rows.length > 0 ? rows : WATCHLIST).map((row, i, arr) => (
+                {rows.length > 0 ? rows.map((row, i, arr) => (
                   <tr key={i} style={{ borderBottom: i < arr.length - 1 ? '1px solid #F0EDE0' : 'none' }}>
                     <td style={{ padding: '11px 16px', fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>{row.barangay}</td>
                     <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#666' }}>{row.municipality}</td>
@@ -230,11 +224,15 @@ export default function AnalyticsView() {
                       {row.hectares.toLocaleString()}
                     </td>
                     <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#666' }}>{row.type}</td>
-                    <td style={{ padding: '11px 16px' }}>
-                      <RiskBadge level={row.risk} />
+                    <td style={{ padding: '11px 16px' }}><RiskBadge level={row.risk} /></td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '28px', textAlign: 'center', color: '#BBB', fontSize: '13px' }}>
+                      No watchlist data for this location.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -255,9 +253,9 @@ export default function AnalyticsView() {
               background: '#F6F4E8', borderRadius: '10px',
               fontSize: '12px', color: '#666', lineHeight: 1.6,
             }}>
-              Urban expansion in San Fernando accelerated by{' '}
+              Expansion accelerated by{' '}
               <strong style={{ color: '#D97706' }}>+15%</strong> following NLEX interchange
-              developments initiated in 2021, driving the 2022–2024 surge.
+              developments in 2021, driving the 2022–2024 surge.
             </div>
           </div>
         </div>
@@ -322,9 +320,7 @@ function KPICard({ label, value, trend, trendDir, since, icon, iconColor }: KPIC
           fontSize: '11.5px', fontWeight: 600,
           color: isDown ? '#DC2626' : '#16A34A',
         }}>
-          {isDown
-            ? <ArrowDown size={11} strokeWidth={2.5} />
-            : <ArrowUp size={11} strokeWidth={2.5} />}
+          {isDown ? <ArrowDown size={11} strokeWidth={2.5} /> : <ArrowUp size={11} strokeWidth={2.5} />}
           {trend}
         </span>
         <span style={{ fontSize: '11px', color: '#BBB' }}>{since}</span>
@@ -364,26 +360,17 @@ function RiskProfileCard({ profile }: { profile: RiskProfile }) {
           {profile.score}
         </span>
       </div>
-
       <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
-        <span style={{
-          padding: '2px 7px', borderRadius: '5px', fontSize: '10.5px', fontWeight: 600,
-          background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-        }}>
+        <span style={{ padding: '2px 7px', borderRadius: '5px', fontSize: '10.5px', fontWeight: 600, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
           Flood: {profile.floodRisk}
         </span>
-        <span style={{
-          padding: '2px 7px', borderRadius: '5px', fontSize: '10.5px', fontWeight: 600,
-          background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A',
-        }}>
+        <span style={{ padding: '2px 7px', borderRadius: '5px', fontSize: '10.5px', fontWeight: 600, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' }}>
           Subsidence: {profile.subsidenceRisk}
         </span>
       </div>
-
       <p style={{ fontSize: '12px', color: '#666', margin: '0 0 10px', lineHeight: 1.55 }}>
         {profile.exposure}
       </p>
-
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: '7px',
         padding: '8px 10px', borderRadius: '9px',
@@ -411,13 +398,11 @@ function BarChart({ data }: { data: { year: number; ha: number }[] }) {
               key={d.year}
               title={`${d.year}: ${d.ha} ha/yr`}
               style={{
-                flex: 1,
-                height: `${pct}%`,
+                flex: 1, height: `${pct}%`,
                 borderRadius: '4px 4px 0 0',
                 background: isLast ? '#A2CB8B' : '#D97706',
                 opacity: isLast ? 0.9 : 0.65,
-                minHeight: '4px',
-                cursor: 'default',
+                minHeight: '4px', cursor: 'default',
                 transition: 'opacity 150ms',
               }}
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1' }}
@@ -426,7 +411,6 @@ function BarChart({ data }: { data: { year: number; ha: number }[] }) {
           )
         })}
       </div>
-      {/* X-axis labels */}
       <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
         {data.map((d, i) => (
           <div key={d.year} style={{ flex: 1, textAlign: 'center' }}>
