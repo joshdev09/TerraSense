@@ -13,12 +13,30 @@
 import { Router } from 'express'
 import fetch from 'node-fetch'
 import fs from 'fs'
+import { toGeoJSON } from '../lib/toGeoJSON.js'
 
 const router = Router()
 
+// Default Pampanga province bounding box
+const PAMPANGA_BBOX = {
+  minLon: 120.30,
+  maxLon: 121.05,
+  minLat: 14.70,
+  maxLat: 15.40,
+}
+
 router.post('/', async (req, res) => {
   try {
-    const { imageBase64, prompt = 'rectangular metal rooftops' } = req.body
+    const { 
+      imageBase64, 
+      prompt = 'rectangular metal rooftops',
+      minLon = PAMPANGA_BBOX.minLon,
+      maxLon = PAMPANGA_BBOX.maxLon,
+      minLat = PAMPANGA_BBOX.minLat,
+      maxLat = PAMPANGA_BBOX.maxLat
+    } = req.body
+    
+    const sceneBbox = { minLon, maxLon, minLat, maxLat }
     
     // 1. Log the incoming request from React
     console.log(`\n==================================================`)
@@ -96,10 +114,20 @@ router.post('/', async (req, res) => {
       console.log(data.detections) 
       
       console.log(`\n[BACKEND]  🗺️ Sending pixel coordinates back to React for GPS projection...`)
+      
+      // Convert Colab box {x1, y1, x2, y2} objects to arrays [x1, y1, x2, y2]
+      const normalisedDetections = data.detections.map(d => ({
+        label: d.label,
+        score: d.score,
+        bbox: d.box ? [d.box.x1, d.box.y1, d.box.x2, d.box.y2] : (d.bbox ?? [0,0,1,1])
+      }))
+
+      // Convert normal coordinates to physical Map Coordinates
+      const geojson = toGeoJSON(normalisedDetections, sceneBbox)
+      console.log(`[BACKEND]  ✅ Generated ${geojson.features.length} GeoJSON Features!`)
       console.log(`==================================================\n`)
       
-      // Returns { ok: true, data: "<box_2d>..." } to match your frontend expectations
-      return res.status(200).json({ ok: true, data: data.detections })
+      return res.status(200).json({ ok: true, data: geojson })
     } else {
       console.log(`[ERROR]    ❌ AI Server failed to process the image.`)
       console.log(data.error || data.detail || data)
