@@ -97,6 +97,7 @@ function BurgerMenuNav({ onNavigate, activeView }: BurgerMenuNavProps) {
           zIndex: 50,
           height: '100dvh',
           width: '280px',
+          maxWidth: '85vw',
           background: '#fff',
           boxShadow: '4px 0 24px rgba(0,0,0,0.12)',
           display: 'flex',

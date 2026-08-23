@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react'
 import { Layers, Leaf, Droplets, TrendingDown, Map as MapIcon } from 'lucide-react'
 import L from 'leaflet'
+import { useIsMobile } from '../lib/useIsMobile'
 
 const YEARS = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
@@ -84,6 +85,7 @@ export default function LayerController({
   onTimelineChange,
 }: LayerControllerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile(640)
 
   // Prevent map interaction when using the controller
   useEffect(() => {
@@ -97,7 +99,9 @@ export default function LayerController({
     <div
       ref={containerRef}
       style={{
-        width: '214px',
+        width: isMobile ? '100%' : '214px',
+        maxHeight: isMobile ? 'calc(100dvh - 220px)' : undefined,
+        overflowY: isMobile ? 'auto' : undefined,
         background: '#fff',
         border: '1px solid #E8E6DA',
         borderRadius: '16px',

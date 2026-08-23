@@ -5,6 +5,7 @@ import {
   ThumbsUp, Plus, Filter,
   ChevronLeft, ChevronRight, MessageSquare, MapPin, X,
 } from 'lucide-react'
+import { useIsMobile } from '../lib/useIsMobile'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Zone {
@@ -88,13 +89,15 @@ const SEV_LABEL: Record<string, string>  = { high: 'High', medium: 'Medium', low
 
 // ── View ──────────────────────────────────────────────────────────────────────
 export default function CommunityView() {
+  const isMobile = useIsMobile(768)
   const [activeZone,    setActiveZone]    = useState<string | null>(null)
   const [upvoted,       setUpvoted]       = useState<Set<number>>(new Set())
   const [upvoteCounts,  setUpvoteCounts]  = useState<Record<number, number>>({})
   const [filterType,    setFilterType]    = useState('All')
   const [filterLoc,     setFilterLoc]     = useState('All Locations')
   const [locOpen,       setLocOpen]       = useState(false)
-  const [panelOpen,     setPanelOpen]     = useState(true)
+  // Default closed on mobile so the map is visible on first load
+  const [panelOpen,     setPanelOpen]     = useState(() => typeof window === 'undefined' || window.innerWidth > 768)
   const locRef = useRef<HTMLDivElement>(null)
 
   // Close location dropdown on outside click
@@ -215,14 +218,17 @@ export default function CommunityView() {
             </div>
           )}
 
-          {/* Panel toggle tab — right edge of map */}
+          {/* Panel toggle tab — right edge of map (fixed on mobile so it's always reachable) */}
           <button
             onClick={() => setPanelOpen(v => !v)}
             title={panelOpen ? 'Hide comments' : 'Show comments'}
             style={{
               pointerEvents: 'auto',
-              position: 'absolute', right: 0, top: '50%',
-              transform: 'translateY(-50%)',
+              position: isMobile ? 'fixed' : 'absolute',
+              right: 0,
+              top: isMobile ? '76px' : '50%',
+              transform: isMobile ? 'none' : 'translateY(-50%)',
+              zIndex: isMobile ? 1600 : undefined,
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px',
               padding: '12px 8px',
               background: '#fff',
@@ -251,17 +257,27 @@ export default function CommunityView() {
       </div>
 
       {/* ── Right: Collapsible incident panel ── */}
-      {/* Outer: fixed width transition + clips content */}
+      {/* Desktop: fixed-width side panel that animates width.
+          Mobile: full-screen overlay that slides in from the right, so it
+          never squeezes the map into an unusable sliver. */}
       <div style={{
-        width: panelOpen ? '420px' : '0px',
+        position: isMobile ? 'fixed' : 'relative',
+        top: isMobile ? 0 : undefined,
+        right: isMobile ? 0 : undefined,
+        bottom: isMobile ? 0 : undefined,
+        width: isMobile ? '100%' : (panelOpen ? '420px' : '0px'),
+        height: isMobile ? '100dvh' : undefined,
         flexShrink: 0,
-        overflow: 'hidden',
-        transition: 'width 320ms cubic-bezier(0.4,0,0.2,1)',
-        borderLeft: panelOpen ? '1px solid #E8E6DA' : 'none',
+        overflow: isMobile ? 'visible' : 'hidden',
+        transform: isMobile ? (panelOpen ? 'translateX(0)' : 'translateX(100%)') : undefined,
+        transition: isMobile ? 'transform 320ms cubic-bezier(0.4,0,0.2,1)' : 'width 320ms cubic-bezier(0.4,0,0.2,1)',
+        borderLeft: panelOpen && !isMobile ? '1px solid #E8E6DA' : 'none',
+        zIndex: isMobile ? 1500 : undefined,
+        pointerEvents: isMobile && !panelOpen ? 'none' : 'auto',
       }}>
         {/* Inner: fixed width so it doesn't squish during animation */}
         <div style={{
-          width: '420px', height: '100%',
+          width: isMobile ? '100%' : '420px', height: '100%',
           display: 'flex', flexDirection: 'column',
           background: '#F6F4E8',
           opacity: panelOpen ? 1 : 0,

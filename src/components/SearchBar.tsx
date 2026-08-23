@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, X, MapPin } from 'lucide-react'
 import L from 'leaflet'
 import { PAMPANGA_LOCATIONS, type PampangaLocation } from '../data/pampangaLocations'
+import { useIsMobile } from '../lib/useIsMobile'
 
 interface SearchBarProps {
   map: L.Map | null
@@ -10,6 +11,7 @@ interface SearchBarProps {
 function SearchBar({ map }: SearchBarProps) {
   const [query,   setQuery]   = useState('')
   const [focused, setFocused] = useState(false)
+  const isMobile = useIsMobile(640)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef     = useRef<HTMLInputElement>(null)
 
@@ -52,7 +54,7 @@ function SearchBar({ map }: SearchBarProps) {
   const showDropdown = focused && filtered.length > 0
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '272px' }}>
+    <div ref={containerRef} style={{ position: 'relative', width: isMobile ? '100%' : '272px' }}>
 
       {/* ── Input ── */}
       <div style={{
