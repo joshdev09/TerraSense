@@ -97,7 +97,7 @@ export default function GroupedLocationPicker({ value, onChange, minWidth = '240
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)',
-          left: 0, minWidth,
+          left: 0, minWidth, maxWidth: 'calc(100vw - 32px)',
           background: '#fff', border: '1px solid #E8E6DA',
           borderRadius: '14px', boxShadow: '0 10px 32px rgba(0,0,0,0.11)',
           zIndex: 300, overflow: 'hidden',

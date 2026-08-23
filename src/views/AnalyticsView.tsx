@@ -126,13 +126,13 @@ export default function AnalyticsView() {
           </div>
 
           {/* Location filter */}
-          <div style={{ width: '240px' }}>
+          <div style={{ width: '240px', maxWidth: '100%' }}>
             <GroupedLocationPicker value={selection} onChange={setSelection} />
           </div>
         </div>
 
         {/* ── KPI cards ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '16px' }}>
           <KPICard
             label="Total Farmland Lost"
             value="4,820 ha"
@@ -163,7 +163,7 @@ export default function AnalyticsView() {
         </div>
 
         {/* ── Main grid: table + chart ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '14px', marginBottom: '14px', alignItems: 'flex-start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px', marginBottom: '14px', alignItems: 'flex-start' }}>
 
           {/* Watchlist table */}
           <div style={{
@@ -200,7 +200,8 @@ export default function AnalyticsView() {
               </div>
             )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: '480px', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#FAFAF7' }}>
                   {['Barangay', 'Municipality', 'Ha Lost', 'Conversion Type', 'Risk'].map(col => (
@@ -235,6 +236,7 @@ export default function AnalyticsView() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Trend chart card */}
@@ -277,7 +279,7 @@ export default function AnalyticsView() {
           </div>
           <div style={{
             padding: '16px 20px',
-            display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px',
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px',
           }}>
             {RISK_PROFILES.map(r => <RiskProfileCard key={r.municipality} profile={r} />)}
           </div>

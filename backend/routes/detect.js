@@ -13,6 +13,7 @@
 import { Router } from 'express'
 import fetch from 'node-fetch'
 import fs from 'fs'
+import fsp from 'fs/promises'
 import { toGeoJSON } from '../lib/toGeoJSON.js'
 
 const router = Router()
@@ -23,6 +24,41 @@ const PAMPANGA_BBOX = {
   maxLon: 121.05,
   minLat: 14.70,
   maxLat: 15.40,
+}
+
+// Colab requests can stall indefinitely on a dead tunnel — bail out instead of hanging forever
+const COLAB_TIMEOUT_MS = 30_000
+
+// Ensure the capture folder exists once at startup, not on every request
+const CAPTURE_DIR = 'satellite-captured'
+if (!fs.existsSync(CAPTURE_DIR)) {
+  fs.mkdirSync(CAPTURE_DIR, { recursive: true })
+}
+
+// Fallback bounding boxes used whenever the Colab GPU server can't be reached
+// (dead tunnel, timeout, 5xx, malformed response) so the UI/demo keeps working
+// instead of showing a raw error.
+function mockDetections(prompt) {
+  return [
+    { label: prompt, score: 0.98, bbox: [0.45, 0.45, 0.55, 0.55] },
+    { label: prompt, score: 0.91, bbox: [0.60, 0.30, 0.70, 0.40] },
+    { label: prompt, score: 0.88, bbox: [0.35, 0.65, 0.42, 0.72] }
+  ]
+}
+
+/**
+ * Persist the raw capture to disk for audit/debug purposes. This is
+ * unrelated to the response the frontend is waiting on, so it runs off
+ * the request's critical path and never blocks the event loop.
+ */
+function saveCaptureInBackground(imageBase64) {
+  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '')
+  const imageBuffer = Buffer.from(base64Data, 'base64')
+  const filePath = `${CAPTURE_DIR}/satellite_capture_${Date.now()}.jpg`
+
+  fsp.writeFile(filePath, imageBuffer)
+    .then(() => console.log(`[SYSTEM]   💾 Saved snapshot locally as: ${filePath}`))
+    .catch(err => console.log(`[SYSTEM]   ⚠️ Could not save image to folder: ${err.message}`))
 }
 
 router.post('/', async (req, res) => {
@@ -52,27 +88,9 @@ router.post('/', async (req, res) => {
 
     console.log(`[DATA]     📦 Image Payload Size: ${(imageBase64.length / 1024).toFixed(2)} KB`)
 
-    try {
-      // Strip the Base64 header 
-      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-      // Convert text to binary buffer
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-      
-      // Ensure the 'satellite-captured' folder exists
-      const dirPath = 'satellite-captured';
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-
-      // Save locally with a timestamp inside the new folder
-      const fileName = `satellite_capture_${Date.now()}.jpg`;
-      const filePath = `${dirPath}/${fileName}`;
-      
-      fs.writeFileSync(filePath, imageBuffer);
-      console.log(`[SYSTEM]   💾 Saved snapshot locally as: ${filePath}`);
-    } catch (saveError) {
-      console.log(`[SYSTEM]   ⚠️ Could not save image to folder: ${saveError.message}`);
-    }
+    // Fire-and-forget: don't make the frontend wait on a disk write
+    // that has nothing to do with the detection result.
+    saveCaptureInBackground(imageBase64)
 
     // Read the dynamic URL from .env so the user doesn't hit dead tunnels (502 Bad Gateway)
     const apiUrl = process.env.COLAB_ENDPOINT_URL
@@ -86,43 +104,65 @@ router.post('/', async (req, res) => {
     
     const startTime = Date.now()
 
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Bypass-Tunnel-Reminder": "true",
-      },
-      body: JSON.stringify({
-        image: imageBase64,
-        text: prompt
-      }),
-    })
+    // Talk to the Colab GPU server, but never let its failure break the demo:
+    // any network error, timeout, 5xx, or malformed response falls back to
+    // mock detections instead of surfacing a 500 to the frontend.
+    let normalisedDetections = null
+    let usedFallback = false
+    let fallbackReason = null
 
-    const responseText = await response.text()
-    let data;
     try {
-      data = JSON.parse(responseText)
-    } catch (e) {
-      throw new Error(`AI Server returned an invalid response (${response.status}): ${responseText.substring(0, 50)}...`)
-    }
-    const inferenceTime = ((Date.now() - startTime) / 1000).toFixed(2)
+      const timeoutController = new AbortController()
+      const timeoutId = setTimeout(() => timeoutController.abort(), COLAB_TIMEOUT_MS)
 
-    // 3. Log the successful return and display the raw AI data
-    if (data.detections) {
+      let response
+      try {
+        response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Bypass-Tunnel-Reminder": "true",
+          },
+          body: JSON.stringify({
+            image: imageBase64,
+            text: prompt
+          }),
+          signal: timeoutController.signal,
+        })
+      } finally {
+        clearTimeout(timeoutId)
+      }
+
+      const responseText = await response.text()
+
+      if (!response.ok) {
+        throw new Error(`AI server responded ${response.status}: ${responseText.substring(0, 80)}`)
+      }
+
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (e) {
+        throw new Error(`AI server returned a non-JSON response (${response.status}): ${responseText.substring(0, 80)}`)
+      }
+
+      if (!data.detections) {
+        throw new Error(data.error || data.detail || 'AI server response had no detections field')
+      }
+
+      const inferenceTime = ((Date.now() - startTime) / 1000).toFixed(2)
       console.log(`[NETWORK]  ✅ 200 OK: Inference completed in ${inferenceTime} seconds.`)
       console.log(`\n[AI MODEL] 🧠 Raw Output Tensors (Pixel Bounding Boxes):`)
-      console.log(data.detections) 
-      
-      console.log(`\n[BACKEND]  🗺️ Sending pixel coordinates back to React for GPS projection...`)
-      
+      console.log(data.detections)
+
       // Convert Colab box {x1, y1, x2, y2} objects to arrays [x1, y1, x2, y2]
       // Important: LocateAnything-3B outputs integer coordinates in [0, 1000] bins.
       // We must divide by 1000 to normalise them to [0, 1] before passing to toGeoJSON.
-      let normalisedDetections = data.detections.map(d => {
+      normalisedDetections = data.detections.map(d => {
         if (!d.box && !d.bbox) return { label: d.label, score: d.score, bbox: [0,0,1,1] };
-        
+
         let [x1, y1, x2, y2] = d.box ? [d.box.x1, d.box.y1, d.box.x2, d.box.y2] : d.bbox;
-        
+
         if (x1 > 1 || y1 > 1 || x2 > 1 || y2 > 1) {
           x1 /= 1000; y1 /= 1000; x2 /= 1000; y2 /= 1000;
         }
@@ -137,25 +177,32 @@ router.post('/', async (req, res) => {
       // If the AI found absolutely nothing (or the Colab python regex failed to parse it),
       // inject realistic mock detections so the demo always succeeds.
       if (normalisedDetections.length === 0) {
-        console.log(`[BACKEND]  ⚠️ AI returned 0 detections! Injecting mock data for UI demo...`)
-        normalisedDetections = [
-          { label: prompt, score: 0.98, bbox: [0.45, 0.45, 0.55, 0.55] },
-          { label: prompt, score: 0.91, bbox: [0.60, 0.30, 0.70, 0.40] },
-          { label: prompt, score: 0.88, bbox: [0.35, 0.65, 0.42, 0.72] }
-        ]
+        usedFallback = true
+        fallbackReason = 'AI server returned 0 detections'
       }
-
-      // Convert normal coordinates to physical Map Coordinates
-      const geojson = toGeoJSON(normalisedDetections, sceneBbox)
-      console.log(`[BACKEND]  ✅ Generated ${geojson.features.length} GeoJSON Features!`)
-      console.log(`==================================================\n`)
-      
-      return res.status(200).json({ ok: true, data: geojson })
-    } else {
-      console.log(`[ERROR]    ❌ AI Server failed to process the image.`)
-      console.log(data.error || data.detail || data)
-      return res.status(500).json({ ok: false, error: data.error || data.detail || 'Unknown error' })
+    } catch (colabErr) {
+      usedFallback = true
+      fallbackReason = colabErr.name === 'AbortError'
+        ? `Colab endpoint timed out after ${COLAB_TIMEOUT_MS / 1000}s — the tunnel may be dead.`
+        : colabErr.message
     }
+
+    if (usedFallback) {
+      console.log(`[BACKEND]  ⚠️ Falling back to mock detections: ${fallbackReason}`)
+      normalisedDetections = mockDetections(prompt)
+    }
+
+    console.log(`\n[BACKEND]  🗺️ Sending pixel coordinates back to React for GPS projection...`)
+
+    // Convert normal coordinates to physical Map Coordinates
+    const geojson = toGeoJSON(normalisedDetections, sceneBbox)
+    geojson.metadata.demo_mode = usedFallback
+    if (usedFallback) geojson.metadata.fallback_reason = fallbackReason
+
+    console.log(`[BACKEND]  ✅ Generated ${geojson.features.length} GeoJSON Features!${usedFallback ? ' (demo mode)' : ''}`)
+    console.log(`==================================================\n`)
+
+    return res.status(200).json({ ok: true, data: geojson, demoMode: usedFallback })
 
   } catch (err) {
     console.log(`[FATAL]    🚨 Pipeline Crash: ${err.message}`)

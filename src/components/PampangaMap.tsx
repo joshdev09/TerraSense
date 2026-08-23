@@ -6,6 +6,7 @@ import L from 'leaflet'
 import SearchBar from './SearchBar'
 import LayerController, { type BasemapType } from './LayerController'
 import { detectUrban } from '../lib/detectUrban'
+import { useIsMobile } from '../lib/useIsMobile'
 
 // Disable default icon paths for leaflet, as they sometimes break in Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -83,6 +84,7 @@ export interface LayerState {
 
 export default function PampangaMap() {
   const [mapRef, setMapRef] = useState<L.Map | null>(null)
+  const isMobile = useIsMobile(640)
   
   const [layers, setLayers] = useState<LayerState>({
     urbanExpansion: false,
@@ -97,6 +99,7 @@ export default function PampangaMap() {
 
   const [detecting,    setDetecting]    = useState(false)
   const [detectError,  setDetectError]  = useState<string | null>(null)
+  const [demoNotice,   setDemoNotice]   = useState<string | null>(null)
   const [urbanGeoJSON, setUrbanGeoJSON] = useState<GeoJSON.FeatureCollection>(URBAN_STUB)
 
   const handleToggle = useCallback((key: keyof LayerState) => {
@@ -115,6 +118,7 @@ export default function PampangaMap() {
   const handleRunDetection = async () => {
     setDetecting(true)
     setDetectError(null)
+    setDemoNotice(null)
 
     let imageBase64 = ''
     try {
@@ -139,12 +143,19 @@ export default function PampangaMap() {
     }
 
     try {
-      const geojson = await detectUrban({ 
-        imageBase64 
+      const geojson = await detectUrban({
+        imageBase64
       })
       setUrbanGeoJSON(geojson)
       // Auto-enable the Urban Expansion layer
       setLayers(prev => ({ ...prev, urbanExpansion: true }))
+
+      const meta = (geojson as unknown as { metadata?: { demo_mode?: boolean; fallback_reason?: string } }).metadata
+      setDemoNotice(
+        meta?.demo_mode
+          ? `Showing demo detections — AI server unavailable (${meta.fallback_reason ?? 'unknown reason'})`
+          : null
+      )
     } catch (err) {
       setDetectError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -254,9 +265,13 @@ export default function PampangaMap() {
 
       {/* Floating UI overlay */}
       <div style={{
-        position: 'absolute', top: '14px', right: '14px',
+        position: 'absolute',
+        top: '14px',
+        left: isMobile ? '14px' : undefined,
+        right: '14px',
+        maxWidth: isMobile ? 'calc(100% - 28px)' : undefined,
         zIndex: 1000,
-        display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start',
+        display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', alignItems: isMobile ? 'stretch' : 'flex-start',
         pointerEvents: 'none',
       }}>
         <div style={{ pointerEvents: 'auto' }}>
@@ -309,6 +324,16 @@ export default function PampangaMap() {
               fontSize: '11.5px', color: '#DC2626', width: '100%', lineHeight: 1.5,
             }}>
               {detectError}
+            </div>
+          )}
+
+          {demoNotice && (
+            <div style={{
+              background: '#FFFBEB', border: '1px solid #FDE68A',
+              borderRadius: '10px', padding: '9px 12px',
+              fontSize: '11.5px', color: '#92400E', width: '100%', lineHeight: 1.5,
+            }}>
+              ⚠️ {demoNotice}
             </div>
           )}
         </div>

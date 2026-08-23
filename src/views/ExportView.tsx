@@ -10,6 +10,7 @@ import GroupedLocationPicker, {
   type LocationSelection,
 } from '../components/GroupedLocationPicker'
 import { generateGeminiSummary, type GeminiSummary } from '../lib/geminiExport'
+import { useIsMobile } from '../lib/useIsMobile'
 
 import satelliteImage from '../assets/satellite_before_after.jpg'
 
@@ -35,6 +36,7 @@ const SELECT_STYLE: React.CSSProperties = {
 
 // ── View ──────────────────────────────────────────────────────────────────────
 export default function ExportView() {
+  const isMobile = useIsMobile(768)
   const [scope, setScope]               = useState<LocationSelection>(ALL_SELECTION)
   const [fromYear, setFromYear]         = useState(2018)
   const [toYear, setToYear]             = useState(2026)
@@ -43,7 +45,7 @@ export default function ExportView() {
   const [generated, setGenerated]       = useState(false)
   const [geminiSummary, setGeminiSummary] = useState<GeminiSummary | null>(null)
   const [geminiError,   setGeminiError]   = useState<string | null>(null)
-  const [capturedImage, setCapturedImage] = useState<string | null>(() => {
+  const [capturedImage] = useState<string | null>(() => {
     try { return localStorage.getItem('terrasense_latest_capture') } catch { return null }
   })
   const reportRef = useRef<HTMLDivElement>(null)
@@ -88,13 +90,14 @@ export default function ExportView() {
   const timestamp = new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: isMobile ? 'auto' : 'hidden' }}>
 
       {/* ── Left: Config panel ── */}
       <div style={{
-        width: '284px', flexShrink: 0,
-        background: '#fff', borderRight: '1px solid #E8E6DA',
-        overflowY: 'auto', padding: '24px 20px',
+        width: isMobile ? '100%' : '284px', flexShrink: 0,
+        background: '#fff', borderRight: isMobile ? 'none' : '1px solid #E8E6DA',
+        borderBottom: isMobile ? '1px solid #E8E6DA' : 'none',
+        overflowY: isMobile ? 'visible' : 'auto', padding: '24px 20px',
         display: 'flex', flexDirection: 'column', gap: '20px',
       }}>
         <div>
@@ -191,7 +194,7 @@ export default function ExportView() {
       </div>
 
       {/* ── Right: Preview ── */}
-      <div style={{ flex: 1, background: '#F6F4E8', overflowY: 'auto', padding: '24px' }}>
+      <div style={{ flex: 1, minWidth: 0, background: '#F6F4E8', overflowY: 'auto', padding: isMobile ? '20px 16px' : '24px' }}>
 
         {/* Empty state */}
         {!isGenerating && !generated && !geminiError && (
@@ -303,13 +306,13 @@ export default function ExportView() {
               </div>
 
               {/* Key Metrics Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderBottom: '1px solid #EEEAE0', background: '#fff' }}>
-                <div style={{ padding: '18px 28px', borderRight: '1px solid #EEEAE0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', borderBottom: '1px solid #EEEAE0', background: '#fff' }}>
+                <div style={{ padding: '18px 28px', borderRight: isMobile ? 'none' : '1px solid #EEEAE0', borderBottom: isMobile ? '1px solid #EEEAE0' : 'none' }}>
                   <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Total Farmland Lost</div>
                   <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>4,820 ha</div>
                   <div style={{ fontSize: '11.5px', color: '#DC2626', fontWeight: 600, marginTop: '6px' }}>−23.4% since 2018</div>
                 </div>
-                <div style={{ padding: '18px 28px', borderRight: '1px solid #EEEAE0' }}>
+                <div style={{ padding: '18px 28px', borderRight: isMobile ? 'none' : '1px solid #EEEAE0', borderBottom: isMobile ? '1px solid #EEEAE0' : 'none' }}>
                   <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Rate of Expansion</div>
                   <div style={{ fontSize: '22px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>602 ha / yr</div>
                   <div style={{ fontSize: '11.5px', color: '#D97706', fontWeight: 600, marginTop: '6px' }}>+8.3% vs. last year</div>
